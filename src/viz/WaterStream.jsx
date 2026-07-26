@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import P5Sketch from "./P5Sketch.jsx";
+import { illustratedWaterStreamSketch } from "./illustratedWaterStreamSketch.js";
 
 /**
  * React owns the container; three.js owns what's inside it. Mirrors the
@@ -10,10 +12,32 @@ import { useEffect, useRef } from "react";
 export default function WaterStream({
   result,
   hidden,
+  mode = "real",
   unreportedLabel = "Lead result not reported",
 }) {
-  const ref = useRef(null);
+  const sketchData = useMemo(() => ({ result, hidden }), [result, hidden]);
   const unmeasured = result?.lead?.value == null;
+
+  return (
+    <div className="relative">
+      {mode === "drawn" ? (
+        <div className="drawn-stream flex justify-center">
+          <P5Sketch sketch={illustratedWaterStreamSketch} data={sketchData} />
+        </div>
+      ) : (
+        <RealWaterStream result={result} hidden={hidden} />
+      )}
+      {unmeasured && (
+        <p className="label-caps pointer-events-none absolute left-1/2 top-[58%] w-max max-w-[82%] -translate-x-1/2 rounded-xl border border-dashed border-ink-muted/70 px-4 py-2 text-center !text-ink-muted">
+          {unreportedLabel}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RealWaterStream({ result, hidden }) {
+  const ref = useRef(null);
 
   useEffect(() => {
     let dispose;
@@ -30,14 +54,5 @@ export default function WaterStream({
     };
   }, [result, hidden]);
 
-  return (
-    <div className="relative">
-      <div ref={ref} className="flex justify-center" />
-      {unmeasured && (
-        <p className="label-caps pointer-events-none absolute left-1/2 top-[58%] w-max -translate-x-1/2 rounded-xl border border-dashed border-ink-muted/70 px-4 py-2 !text-ink-muted">
-          {unreportedLabel}
-        </p>
-      )}
-    </div>
-  );
+  return <div ref={ref} className="flex justify-center" />;
 }

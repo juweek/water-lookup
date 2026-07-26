@@ -14,7 +14,8 @@ export function glassComposition(result, hidden = []) {
       key: "lead",
       label: "Lead",
       tier: lead.tier || "measured",
-      color: lead.definition?.color || "#d56f5b",
+      color:
+        lead.definition?.particleColor || lead.definition?.color || "#30343a",
       // Lead uses the approved 1 mark = 0.05 µg/L grammar until the WebGL
       // safety cap. The UI recalculates and prints the dose when the cap is hit,
       // so the visible count and caption never disagree.

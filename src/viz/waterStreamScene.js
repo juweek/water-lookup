@@ -33,8 +33,8 @@ import { glassComposition } from "../lib/glassComposition.js";
  */
 
 // ── World geometry (camera units) ──────────────────────────────────────────
-const SPOUT_Y = 9.1; // where the tap releases water
-const SPOUT_HALF = 0.62; // mouth half-width → initial stream radius
+const SPOUT_Y = 9.1; // where the stream enters the frame
+const SPOUT_HALF = 1.02; // a broad source makes the pour read as a sheet of water
 const RIM_Y = -1.55; // glass rim
 const POOL_Y = -2.85; // resting water surface in the glass
 const FLOOR_Y = -10.25; // glass floor — deliberately tall, not bowl-shaped
@@ -181,7 +181,7 @@ export function createWaterStream(
   // standing water is a mesh, so the whole budget goes to the stream itself:
   // droplets are SMALL and MANY so the pour reads as water, not beads.
   const waterCount = Math.round(
-    Math.min(3200, Math.max(1100, (width * height) / 95)),
+    Math.min(4400, Math.max(1500, (width * height) / 72)),
   );
   const lead = composition.contaminants[0] || null;
   const leadCount = lead ? lead.count : 0;
@@ -207,7 +207,7 @@ export function createWaterStream(
 
   function spawnAtSpout(s, i, isLead) {
     const j = i * 3;
-    s.pos[j] = (Math.random() * 2 - 1) * SPOUT_HALF * 0.85;
+    s.pos[j] = (Math.random() * 2 - 1) * SPOUT_HALF * 0.92;
     s.pos[j + 1] = SPOUT_Y + Math.random() * 0.8;
     s.pos[j + 2] = (Math.random() * 2 - 1) * 0.4;
     s.vel[j] = 0;
@@ -241,12 +241,12 @@ export function createWaterStream(
   // floor, where it lingers — density made visible.
   function submergeLead(s, i) {
     const j = i * 3;
-    s.life[i] = 18 + Math.random() * 12;
+    s.life[i] = 52 + Math.random() * 20;
     s.age[i] = 0;
     s.target[i] = FLOOR_Y + 0.18 + Math.random() * 0.48;
-    s.vel[j] = (Math.random() * 2 - 1) * 0.75;
-    s.vel[j + 1] *= 0.08;
-    s.vel[j + 2] = (Math.random() * 2 - 1) * 0.7;
+    s.vel[j] = (Math.random() * 2 - 1) * 0.9;
+    s.vel[j + 1] *= 0.045;
+    s.vel[j + 2] = (Math.random() * 2 - 1) * 0.85;
   }
 
   function prewarm() {
@@ -266,9 +266,9 @@ export function createWaterStream(
         // Start at varied ages so the first frame contains both circulating
         // and floor-settled marks rather than one synchronized clump.
         submergeLead(leadS, i);
-        leadS.age[i] = Math.random() * 14;
+        leadS.age[i] = Math.random() * 42;
         leadS.life[i] = Math.max(2, leadS.life[i] - leadS.age[i]);
-        const settle = Math.min(1, leadS.age[i] / 10);
+        const settle = Math.pow(Math.min(1, leadS.age[i] / 30), 1.55);
         leadS.pos[j + 1] =
           (POOL_Y - 0.5) * (1 - settle) +
           leadS.target[i] * settle +
@@ -293,10 +293,10 @@ export function createWaterStream(
     // Gravity + continuity narrowing + a light wiggle.
     s.vel[j + 1] -= GRAVITY * dt;
     const speed = -s.vel[j + 1];
-    const taper = 1 / (1 + speed * 0.09); // faster ⇒ tighter column
-    s.pos[j] -= s.pos[j] * (1 - taper) * dt * 3;
-    s.pos[j] += Math.sin(t * 7 + s.phase[i]) * 0.012;
-    s.pos[j + 2] += Math.cos(t * 6 + s.phase[i]) * 0.008;
+    const taper = 1 / (1 + speed * 0.045); // faster ⇒ tighter, but still a broad pour
+    s.pos[j] -= s.pos[j] * (1 - taper) * dt * 2.25;
+    s.pos[j] += Math.sin(t * 7 + s.phase[i]) * 0.016;
+    s.pos[j + 2] += Math.cos(t * 6 + s.phase[i]) * 0.011;
     s.pos[j + 1] += s.vel[j + 1] * dt;
   }
 
@@ -344,21 +344,24 @@ export function createWaterStream(
           spawnAtSpout(s, i, true);
           continue;
         }
-        const settle = Math.min(1, s.age[i] / 10);
+        // Lead is denser than water, but this is intentionally a long,
+        // circulating journey: visible currents dominate at first, then
+        // density gradually wins. The eased curve avoids a straight drop.
+        const settle = Math.pow(Math.min(1, s.age[i] / 30), 1.55);
         const circulation = 1 - settle;
         const phase = s.phase[i];
         const targetY =
           (POOL_Y - 0.55) * circulation +
           s.target[i] * settle +
-          Math.sin(t * (0.72 + (i % 5) * 0.055) + phase) *
-            (0.12 + circulation * 0.48);
+          Math.sin(t * (0.62 + (i % 5) * 0.045) + phase) *
+            (0.14 + circulation * 0.72);
         const xFlow =
-          Math.sin(t * (0.62 + (i % 7) * 0.04) + phase) *
-          (0.18 + circulation * 0.9);
+          Math.sin(t * (0.54 + (i % 7) * 0.036) + phase) *
+          (0.2 + circulation * 1.22);
         const zFlow =
-          Math.cos(t * (0.78 + (i % 6) * 0.045) + phase * 1.3) *
-          (0.14 + circulation * 0.65);
-        const flowEase = Math.min(1, dt * 2.2);
+          Math.cos(t * (0.67 + (i % 6) * 0.04) + phase * 1.3) *
+          (0.16 + circulation * 0.88);
+        const flowEase = Math.min(1, dt * 1.8);
         s.vel[j] += (xFlow - s.vel[j]) * flowEase;
         s.vel[j + 1] += (targetY - s.pos[j + 1]) * dt * 1.35;
         s.vel[j + 1] *= Math.exp(-dt * 1.25);
@@ -558,7 +561,7 @@ export function createWaterStream(
     wallGeometry.attributes.position.needsUpdate = true;
   }
 
-  // ── Illustrative line art: tap + glass ───────────────────────────────────
+  // ── Glass line art ───────────────────────────────────────────────────────
   const lineMaterial = new THREE.LineBasicMaterial({
     color: 0xeef6fd,
     transparent: true,
@@ -573,18 +576,7 @@ export function createWaterStream(
     return geometry;
   }
   const artGeometries = [
-    // Tap: supply pipe running in from the left, turning down into the mouth.
-    line([
-      [-8.2, SPOUT_Y + 1.7],
-      [-SPOUT_HALF - 0.55, SPOUT_Y + 1.7],
-      [-SPOUT_HALF - 0.55, SPOUT_Y + 0.15],
-    ]),
-    line([
-      [-8.2, SPOUT_Y + 2.6],
-      [SPOUT_HALF + 0.55, SPOUT_Y + 2.6],
-      [SPOUT_HALF + 0.55, SPOUT_Y + 0.15],
-    ]),
-    // Glass: tapered tumbler, open at the rim.
+    // The stream begins beyond the crop; only the tapered tumbler is drawn.
     line([
       [-GLASS_TOP_HALF, RIM_Y],
       [-GLASS_BOT_HALF, FLOOR_Y],
