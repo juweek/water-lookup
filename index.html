@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a1322" />
+    <script>
+      try {
+        document.documentElement.dataset.waterTheme =
+          localStorage.getItem("water-theme") === "drawn" ? "drawn" : "real";
+      } catch {
+        document.documentElement.dataset.waterTheme = "real";
+      }
+    </script>
+    <meta name="description" content="Search a U.S. ZIP code or city to see what EPA publishes about the local drinking-water system, including its latest reported lead 90th percentile." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Fraunces = the editorial display serif (free, Google Fonts) — used large
+         and often italic for the poetic lines. Labels/nav fall back to system-ui.
+         Weights pinned (no optical-size axis) to keep the font file small and the
+         first paint fast; display=swap so text never blocks on it. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap"
+      rel="stylesheet"
+    />
+    <title>What’s in the Glass?</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
+</html>
