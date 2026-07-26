@@ -7,7 +7,7 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-sites-worker.mjs",
     "data:refresh": "node scripts/build-water-index.mjs",
     "preview": "vite preview"
   },

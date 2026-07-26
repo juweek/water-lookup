@@ -9,5 +9,8 @@ export default defineConfig({
   server: process.env.PORT
     ? { port: Number(process.env.PORT), strictPort: true }
     : {},
-  build: { chunkSizeWarningLimit: 1200 },
+  build: {
+    outDir: "dist/client",
+    chunkSizeWarningLimit: 1200,
+  },
 });
