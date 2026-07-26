@@ -565,8 +565,7 @@ html[data-water-theme="drawn"] .record-shell {
     "glass tabs"
     "glass verdict"
     "glass lane"
-    "glass violations"
-    "glass facts"
+    "glass meta"
     "glass actions";
   grid-template-columns: minmax(300px, 365px) minmax(0, 1fr);
   column-gap: clamp(38px, 6vw, 78px);
@@ -575,7 +574,7 @@ html[data-water-theme="drawn"] .record-shell {
 
 .place-block {
   grid-area: place;
-  padding-bottom: 20px;
+  padding-bottom: 14px;
 }
 
 .place-heading {
@@ -583,7 +582,7 @@ html[data-water-theme="drawn"] .record-shell {
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  margin-top: 12px;
+  margin-top: 9px;
 }
 
 .place-heading h1 {
@@ -627,10 +626,11 @@ html[data-water-theme="drawn"] .record-shell {
 .contaminant-tabs button {
   position: relative;
   flex: none;
-  padding: 14px 0 12px;
+  padding: 11px 0 10px;
   border: 0;
   background: transparent;
   color: var(--text-muted);
+  cursor: pointer;
   font-size: 0.76rem;
 }
 
@@ -647,11 +647,6 @@ html[data-water-theme="drawn"] .record-shell {
   height: 2px;
   background: var(--lead);
   content: "";
-}
-
-.contaminant-tabs button:disabled {
-  cursor: not-allowed;
-  opacity: 0.66;
 }
 
 .contaminant-tabs button.deferred {
@@ -671,7 +666,7 @@ html[data-water-theme="drawn"] .record-shell {
 
 .glass-lighting {
   position: relative;
-  min-height: 390px;
+  min-height: 510px;
   isolation: isolate;
 }
 
@@ -731,8 +726,8 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 }
 
 .reading-lockup {
-  margin-top: -14px;
-  padding-top: 21px;
+  margin-top: -6px;
+  padding-top: 17px;
   border-top: 1px solid var(--rule);
 }
 
@@ -759,15 +754,25 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   font-weight: 700;
 }
 
+.unavailable-reading strong {
+  max-width: 100%;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 1.9rem;
+  font-style: normal;
+  font-weight: 720;
+  letter-spacing: -0.03em;
+}
+
 .sampling-period {
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--text);
   font-size: 0.72rem;
   font-weight: 650;
 }
 
 .mark-note {
-  margin-top: 12px;
+  margin-top: 9px;
   color: var(--text-muted);
   font-size: 0.7rem;
   line-height: 1.55;
@@ -777,8 +782,8 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   display: flex;
   align-items: center;
   gap: 13px;
-  margin-top: 20px;
-  padding-top: 15px;
+  margin-top: 15px;
+  padding-top: 12px;
   border-top: 1px solid var(--rule);
 }
 
@@ -800,21 +805,21 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 
 .verdict-block {
   grid-area: verdict;
-  padding: 34px 0 31px;
+  padding: 23px 0 22px;
   border-bottom: 1px solid var(--rule);
 }
 
 .verdict-block h2 {
   max-width: 760px;
-  margin-top: 12px;
+  margin-top: 8px;
   color: color-mix(in srgb, var(--lead) 65%, var(--text-bright));
-  font-size: clamp(2rem, 3.6vw, 3.35rem);
+  font-size: clamp(1.9rem, 3.1vw, 2.85rem);
   line-height: 1.08;
 }
 
 .verdict-block > p:last-child {
   max-width: 650px;
-  margin-top: 17px;
+  margin-top: 11px;
   color: var(--text-muted);
   font-size: 0.78rem;
   line-height: 1.6;
@@ -822,7 +827,7 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 
 .lead-lane {
   grid-area: lane;
-  padding: 29px 0 31px;
+  padding: 22px 0 20px;
   border-bottom: 1px solid var(--rule);
 }
 
@@ -851,7 +856,7 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 .lane-scale {
   position: relative;
   height: 2px;
-  margin-top: 38px;
+  margin-top: 30px;
   background: var(--rule-strong);
 }
 
@@ -947,20 +952,52 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   line-height: 1.5;
 }
 
-.violation-summary {
-  grid-area: violations;
+.availability-lane .lane-scale {
   display: flex;
+  height: 30px;
   align-items: center;
-  gap: 20px;
-  padding: 27px 0;
+  justify-content: space-between;
+  margin-top: 18px;
+  background-position: left center;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+
+.availability-lane .lane-scale > span {
+  padding-right: 8px;
+  background: var(--page-lift);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.availability-lane .lane-scale > i {
+  padding-left: 8px;
+  background: var(--page-lift);
+  color: var(--text);
+  font-style: normal;
+}
+
+.record-meta {
+  grid-area: meta;
+  display: grid;
+  grid-template-columns: minmax(190px, 0.78fr) minmax(0, 1.22fr);
   border-bottom: 1px solid var(--rule);
 }
 
+.violation-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 22px 18px 0;
+  border-right: 1px solid var(--rule);
+}
+
 .violation-summary > strong {
-  min-width: 66px;
+  min-width: 48px;
   color: var(--text-bright);
   font-family: "Fraunces", Georgia, serif;
-  font-size: 3.2rem;
+  font-size: 2.7rem;
   font-style: italic;
   font-weight: 400;
   line-height: 1;
@@ -973,20 +1010,19 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 }
 
 .system-facts {
-  grid-area: facts;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 26px 0;
-  border-bottom: 1px solid var(--rule);
+  align-items: center;
+  padding: 18px 0 18px 22px;
 }
 
 .system-facts dl {
   min-width: 0;
-  padding-right: 22px;
+  padding-right: 14px;
 }
 
 .system-facts dl + dl {
-  padding-left: 22px;
+  padding-left: 14px;
   border-left: 1px solid var(--rule);
 }
 
@@ -1008,7 +1044,7 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 
 .action-rows {
   grid-area: actions;
-  padding: 8px 0 2px;
+  padding: 5px 0 2px;
 }
 
 .tap-row,
@@ -1017,7 +1053,7 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  min-height: 62px;
+  min-height: 52px;
   border-bottom: 1px solid var(--rule);
 }
 
@@ -1118,7 +1154,7 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px 20px;
-  padding: 20px 0 12px;
+  padding: 14px 0 8px;
   color: var(--text-muted);
   font-size: 0.62rem;
 }
@@ -1286,8 +1322,7 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
       "glass"
       "verdict"
       "lane"
-      "violations"
-      "facts"
+      "meta"
       "actions";
     grid-template-columns: minmax(0, 1fr);
     padding: 25px 20px 10px;
@@ -1330,11 +1365,11 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   }
 
   .glass-lighting canvas {
-    max-height: 430px;
+    max-height: 560px;
   }
 
   .reading-lockup {
-    margin-top: -18px;
+    margin-top: -6px;
   }
 
   .reading strong {
@@ -1355,7 +1390,7 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   }
 
   .lead-lane {
-    padding-block: 26px;
+    padding-block: 22px;
   }
 
   .section-heading {
@@ -1367,13 +1402,20 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
     text-align: right;
   }
 
+  .record-meta {
+    grid-template-columns: 1fr;
+  }
+
   .violation-summary {
-    padding-block: 24px;
+    padding: 20px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
   }
 
   .system-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px 0;
+    padding: 20px 0;
   }
 
   .system-facts dl:nth-of-type(3) {

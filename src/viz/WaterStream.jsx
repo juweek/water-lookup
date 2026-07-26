@@ -7,7 +7,11 @@ import { useEffect, useRef } from "react";
  * WebGL context never leaks. The "not reported" dotted device lives here in
  * DOM (not the canvas) so it stays crisp and screen-reader-visible.
  */
-export default function WaterStream({ result, hidden }) {
+export default function WaterStream({
+  result,
+  hidden,
+  unreportedLabel = "Lead result not reported",
+}) {
   const ref = useRef(null);
   const unmeasured = result?.lead?.value == null;
 
@@ -31,7 +35,7 @@ export default function WaterStream({ result, hidden }) {
       <div ref={ref} className="flex justify-center" />
       {unmeasured && (
         <p className="label-caps pointer-events-none absolute left-1/2 top-[58%] w-max -translate-x-1/2 rounded-xl border border-dashed border-ink-muted/70 px-4 py-2 !text-ink-muted">
-          Lead result not reported
+          {unreportedLabel}
         </p>
       )}
     </div>

@@ -33,15 +33,16 @@ import { glassComposition } from "../lib/glassComposition.js";
  */
 
 // ── World geometry (camera units) ──────────────────────────────────────────
-const SPOUT_Y = 8.8; // where the tap releases water
+const SPOUT_Y = 9.1; // where the tap releases water
 const SPOUT_HALF = 0.62; // mouth half-width → initial stream radius
-const RIM_Y = -2.4; // glass rim
-const POOL_Y = -4.0; // resting water surface in the glass
-const FLOOR_Y = -7.4; // glass floor
-const GLASS_TOP_HALF = 4.7; // glass half-width at rim
-const GLASS_BOT_HALF = 3.9; // …and at floor
-const GLASS_DEPTH = 1.6; // half-depth (z) of the water body
+const RIM_Y = -1.55; // glass rim
+const POOL_Y = -2.85; // resting water surface in the glass
+const FLOOR_Y = -10.25; // glass floor — deliberately tall, not bowl-shaped
+const GLASS_TOP_HALF = 4.5; // glass half-width at rim
+const GLASS_BOT_HALF = 3.35; // …and at floor
+const GLASS_DEPTH = 1.7; // half-depth (z) of the water body
 const GRAVITY = 15;
+const CAMERA_FOV = 37;
 
 const WATER_DEEP = [0.09, 0.33, 0.58];
 const WATER_LIGHT = [0.5, 0.8, 0.95];
@@ -147,7 +148,7 @@ export function createWaterStream(
   const dim = unmeasured ? 0.45 : 1;
 
   let width = Math.max(260, Math.min(620, container.clientWidth || 520));
-  let height = Math.max(380, Math.round(width * 0.92));
+  let height = Math.max(510, Math.round(width * 1.38));
 
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
@@ -162,12 +163,18 @@ export function createWaterStream(
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(35, width / height, 1, 100);
-  camera.position.set(1.7, 1.1, 31);
-  camera.lookAt(0, 0.6, 0);
+  const camera = new THREE.PerspectiveCamera(
+    CAMERA_FOV,
+    width / height,
+    1,
+    100,
+  );
+  camera.position.set(1.5, 0.55, 35);
+  camera.lookAt(0, 0.4, 0);
 
   const uProj = () =>
-    (height * pixelRatio * 0.5) / Math.tan(THREE.MathUtils.degToRad(35 / 2));
+    (height * pixelRatio * 0.5) /
+    Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV / 2));
 
   // ── Particle store (struct-of-arrays) ────────────────────────────────────
   // All water particles live in the falling column or a brief splash — the
@@ -188,6 +195,8 @@ export function createWaterStream(
       vel: new Float32Array(count * 3),
       phase: new Float32Array(count),
       life: new Float32Array(count),
+      age: new Float32Array(count),
+      target: new Float32Array(count),
       alpha: new Float32Array(count),
       size: new Float32Array(count),
     };
@@ -206,9 +215,10 @@ export function createWaterStream(
     s.vel[j + 2] = 0;
     s.phase[i] = Math.random() * Math.PI * 2;
     s.life[i] = -1;
+    s.age[i] = 0;
     s.alpha[i] = 1;
     s.size[i] = isLead
-      ? 0.28 + Math.random() * 0.14
+      ? 0.095 + Math.random() * 0.055
       : 0.09 + Math.random() * 0.09;
   }
 
@@ -231,11 +241,12 @@ export function createWaterStream(
   // floor, where it lingers — density made visible.
   function submergeLead(s, i) {
     const j = i * 3;
-    s.life[i] = 10 + Math.random() * 6;
-    s.vel[j] *= 0.25;
-    s.vel[j + 1] *= 0.12;
-    s.vel[j + 2] = (Math.random() * 2 - 1) * 0.3;
-    s.phase[i] = FLOOR_Y + 0.22 + Math.random() * 0.6; // rest depth
+    s.life[i] = 18 + Math.random() * 12;
+    s.age[i] = 0;
+    s.target[i] = FLOOR_Y + 0.18 + Math.random() * 0.48;
+    s.vel[j] = (Math.random() * 2 - 1) * 0.75;
+    s.vel[j + 1] *= 0.08;
+    s.vel[j + 2] = (Math.random() * 2 - 1) * 0.7;
   }
 
   function prewarm() {
@@ -251,15 +262,23 @@ export function createWaterStream(
     for (let i = 0; i < leadS.count; i++) {
       spawnAtSpout(leadS, i, true);
       const j = i * 3;
-      if (Math.random() < 0.6) {
-        // Already settled through the water column.
+      if (Math.random() < 0.82) {
+        // Start at varied ages so the first frame contains both circulating
+        // and floor-settled marks rather than one synchronized clump.
         submergeLead(leadS, i);
-        leadS.life[i] *= Math.random();
-        leadS.pos[j + 1] = leadS.phase[i] + Math.random() * 1.6;
+        leadS.age[i] = Math.random() * 14;
+        leadS.life[i] = Math.max(2, leadS.life[i] - leadS.age[i]);
+        const settle = Math.min(1, leadS.age[i] / 10);
+        leadS.pos[j + 1] =
+          (POOL_Y - 0.5) * (1 - settle) +
+          leadS.target[i] * settle +
+          (Math.random() * 2 - 1) * 0.35;
         const half = glassHalfWidth(leadS.pos[j + 1]) - 0.3;
         leadS.pos[j] = (Math.random() * 2 - 1) * half;
         leadS.pos[j + 2] = (Math.random() * 2 - 1) * (GLASS_DEPTH - 0.2);
-        leadS.vel[j] = leadS.vel[j + 1] = leadS.vel[j + 2] = 0;
+        leadS.vel[j] = (Math.random() * 2 - 1) * 0.4;
+        leadS.vel[j + 1] = 0;
+        leadS.vel[j + 2] = (Math.random() * 2 - 1) * 0.35;
       } else {
         const y = POOL_Y + Math.random() * (SPOUT_Y - POOL_Y);
         leadS.pos[j + 1] = y;
@@ -317,18 +336,34 @@ export function createWaterStream(
         if (s.pos[j + 1] <= surfaceY(s.pos[j], s.pos[j + 2], t))
           submergeLead(s, i);
       } else {
-        // SUBMERGED: drag, slow settle toward the rest depth, faint drift.
+        // SUBMERGED: each mark gets an independent circulation phase while
+        // density gradually wins and pulls it toward the glass floor.
         s.life[i] -= dt;
+        s.age[i] += dt;
         if (s.life[i] <= 0) {
           spawnAtSpout(s, i, true);
           continue;
         }
-        const drag = Math.exp(-dt * 2.4);
-        s.vel[j] *= drag;
-        s.vel[j + 2] *= drag;
-        const restY = s.phase[i];
-        s.vel[j + 1] = (restY - s.pos[j + 1]) * 0.85;
-        s.pos[j] += s.vel[j] * dt + Math.sin(t * 1.3 + i) * 0.003;
+        const settle = Math.min(1, s.age[i] / 10);
+        const circulation = 1 - settle;
+        const phase = s.phase[i];
+        const targetY =
+          (POOL_Y - 0.55) * circulation +
+          s.target[i] * settle +
+          Math.sin(t * (0.72 + (i % 5) * 0.055) + phase) *
+            (0.12 + circulation * 0.48);
+        const xFlow =
+          Math.sin(t * (0.62 + (i % 7) * 0.04) + phase) *
+          (0.18 + circulation * 0.9);
+        const zFlow =
+          Math.cos(t * (0.78 + (i % 6) * 0.045) + phase * 1.3) *
+          (0.14 + circulation * 0.65);
+        const flowEase = Math.min(1, dt * 2.2);
+        s.vel[j] += (xFlow - s.vel[j]) * flowEase;
+        s.vel[j + 1] += (targetY - s.pos[j + 1]) * dt * 1.35;
+        s.vel[j + 1] *= Math.exp(-dt * 1.25);
+        s.vel[j + 2] += (zFlow - s.vel[j + 2]) * flowEase;
+        s.pos[j] += s.vel[j] * dt;
         s.pos[j + 1] += s.vel[j + 1] * dt;
         s.pos[j + 2] += s.vel[j + 2] * dt;
         const half = glassHalfWidth(s.pos[j + 1]) - 0.3;
@@ -337,7 +372,7 @@ export function createWaterStream(
         if (s.pos[j + 2] > GLASS_DEPTH - 0.2) s.pos[j + 2] = GLASS_DEPTH - 0.2;
         else if (s.pos[j + 2] < -GLASS_DEPTH + 0.2)
           s.pos[j + 2] = -GLASS_DEPTH + 0.2;
-        s.alpha[i] = Math.min(1, s.life[i] / 0.6);
+        s.alpha[i] = Math.min(1, s.life[i] / 0.8);
       }
     }
   }
@@ -561,7 +596,7 @@ export function createWaterStream(
   // ── Sizing: track the container so late layout / window resizes both land ─
   function applySize() {
     const w = Math.max(260, Math.min(620, container.clientWidth || 520));
-    const h = Math.max(380, Math.round(w * 0.92));
+    const h = Math.max(510, Math.round(w * 1.38));
     if (w === width && h === height) return false;
     width = w;
     height = h;

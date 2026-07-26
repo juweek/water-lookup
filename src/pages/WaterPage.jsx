@@ -2,20 +2,77 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAsync } from "../lib/useAsync.js";
 import { getByQuery, getComplianceByPwsid } from "../data/waterQuality.js";
-import { getScenario, SCENARIOS } from "../data/scenarios.js";
+import { SCENARIOS } from "../data/scenarios.js";
 import { LEAD } from "../lib/contaminants.js";
 import LookupInput from "../components/LookupInput.jsx";
 import { ErrorState, Loading } from "../components/Status.jsx";
 import WaterStream from "../viz/WaterStream.jsx";
 
 const EMPTY_HIDDEN = [];
-const BASELINE = getScenario("distilled");
 const CONTAMINANT_TABS = [
-  { label: "Lead", available: true },
-  { label: "Copper", note: "Not included in the Phase 1 record" },
-  { label: "Bacteria", note: "Not included in the Phase 1 record" },
-  { label: "Pipes", note: "Service-line inventories are not yet compiled" },
-  { label: "PFAS", note: "Deferred to a later data release", deferred: true },
+  { key: "lead", label: "Lead" },
+  {
+    key: "copper",
+    label: "Copper",
+    eyebrow: "Federal copper result",
+    status: "Not included",
+    period: "No copper sampling period in this release",
+    glassLabel: "Copper result not included",
+    verdict:
+      "Copper is lead’s regulatory twin—but this release does not publish a copper value.",
+    explanation:
+      "Copper uses a 1,300 µg/L action level. EPA’s health goal is the same number; neither is a tap-level result.",
+    laneReadout: "No result in this release",
+    laneNote:
+      "No copper value is drawn. The dashed lane marks a field this Phase 1 snapshot does not compile.",
+    legalLabel: "1,300 µg/L action level and health goal",
+  },
+  {
+    key: "bacteria",
+    label: "Bacteria",
+    eyebrow: "Presence / absence record",
+    status: "Not included",
+    period: "No bacteria monitoring period in this release",
+    glassLabel: "Bacteria record not included",
+    verdict:
+      "Bacteria is a yes-or-no monitoring record—not a concentration to pour into this glass.",
+    explanation:
+      "A future bacteria view will use reported presence, absence, and monitoring periods. Missing records are not rendered as clear water.",
+    laneReadout: "Presence / absence data not compiled",
+    laneNote:
+      "A dotted state stands in for the unavailable monitoring strip; it does not imply a negative test.",
+  },
+  {
+    key: "pipes",
+    label: "Pipes",
+    eyebrow: "Service-line inventory",
+    status: "Not compiled",
+    period: "No inventory date in this release",
+    glassLabel: "Pipe inventory not compiled",
+    verdict:
+      "Pipe material is an inventory—not a contaminant concentration.",
+    explanation:
+      "Service-line inventories are filed through state programs in inconsistent formats. This Phase 1 release does not claim a value it has not compiled.",
+    laneReadout: "Inventory not compiled",
+    laneNote:
+      "The dashed bar is an explicit data gap, not a claim that this system has no lead or unknown service lines.",
+  },
+  {
+    key: "pfas",
+    label: "PFAS",
+    eyebrow: "UCMR 5 record",
+    status: "Deferred",
+    period: "UCMR 5 integration is planned for a later release",
+    glassLabel: "PFAS data deferred",
+    verdict:
+      "PFAS data is deferred until the UCMR 5 record can be integrated without overstating coverage.",
+    explanation:
+      "UCMR 5 covers a fixed analyte list and a defined sampling program—not every PFAS compound and not every tap.",
+    laneReadout: "No PFAS result in this release",
+    laneNote:
+      "The dotted lane keeps the future field visible while clearly separating it from measured data.",
+    deferred: true,
+  },
 ];
 
 export default function WaterPage() {
@@ -23,6 +80,12 @@ export default function WaterPage() {
   const query = rawQuery ? decodeURIComponent(rawQuery) : "";
   const [searchParams] = useSearchParams();
   const selectedSystem = searchParams.get("system");
+  const requestedContaminant = searchParams.get("contaminant");
+  const activeContaminant = CONTAMINANT_TABS.some(
+    (tab) => tab.key === requestedContaminant,
+  )
+    ? requestedContaminant
+    : "lead";
   const lookupKey = query
     ? `${query}${selectedSystem ? `?system=${encodeURIComponent(selectedSystem)}` : ""}`
     : "";
@@ -74,6 +137,19 @@ export default function WaterPage() {
     navigate(`/${encodeURIComponent(nextQuery)}`);
   }
 
+  function updateParams(updates) {
+    const next = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value == null || value === "" || (key === "contaminant" && value === "lead")) {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    }
+    const suffix = next.toString();
+    navigate(`/${encodeURIComponent(query)}${suffix ? `?${suffix}` : ""}`);
+  }
+
   if (!query) {
     return (
       <Landing
@@ -110,12 +186,10 @@ export default function WaterPage() {
         <Record
           result={result}
           query={query}
+          activeContaminant={activeContaminant}
           complianceStatus={complianceStatus}
-          onSystem={(pwsid) =>
-            navigate(
-              `/${encodeURIComponent(query)}?system=${encodeURIComponent(pwsid)}`,
-            )
-          }
+          onContaminant={(key) => updateParams({ contaminant: key })}
+          onSystem={(pwsid) => updateParams({ system: pwsid })}
         />
       )}
     </section>
@@ -241,8 +315,22 @@ function ThemeToggle({ value, onChange }) {
   );
 }
 
-function Record({ result, query, complianceStatus, onSystem }) {
+function Record({
+  result,
+  query,
+  activeContaminant,
+  complianceStatus,
+  onContaminant,
+  onSystem,
+}) {
   const { lead, system } = result;
+  const activeTab =
+    CONTAMINANT_TABS.find((tab) => tab.key === activeContaminant) ??
+    CONTAMINANT_TABS[0];
+  const isLead = activeTab.key === "lead";
+  const glassResult = isLead
+    ? result
+    : { ...result, lead: { ...lead, value: null, periodLabel: null } };
   const markCount =
     lead.value == null || Number(lead.value) <= 0
       ? 0
@@ -276,13 +364,13 @@ function Record({ result, query, complianceStatus, onSystem }) {
       <nav className="contaminant-tabs" aria-label="Contaminants">
         {CONTAMINANT_TABS.map((tab) => (
           <button
-            key={tab.label}
+            key={tab.key}
             type="button"
-            className={tab.available ? "active" : tab.deferred ? "deferred" : ""}
-            aria-current={tab.available ? "page" : undefined}
-            aria-disabled={!tab.available}
-            title={tab.note}
-            disabled={!tab.available}
+            className={`${activeTab.key === tab.key ? "active" : ""} ${
+              tab.deferred ? "deferred" : ""
+            }`}
+            aria-current={activeTab.key === tab.key ? "page" : undefined}
+            onClick={() => onContaminant(tab.key)}
           >
             {tab.label}
           </button>
@@ -293,42 +381,64 @@ function Record({ result, query, complianceStatus, onSystem }) {
         <div className="glass-sticky">
           <div className="glass-lighting">
             <span className="glass-orb" aria-hidden="true" />
-            <WaterStream result={result} hidden={EMPTY_HIDDEN} />
+            <WaterStream
+              result={glassResult}
+              hidden={EMPTY_HIDDEN}
+              unreportedLabel={
+                isLead ? "Lead result not reported" : activeTab.glassLabel
+              }
+            />
           </div>
           <div className="reading-lockup">
-            <p className="eyebrow">
-              {lead.tier === "measured"
-                ? "Reported lead · 90th percentile"
-                : lead.tier === "illustrative"
-                  ? "Illustrative lead value"
-                  : "Federal lead result"}
-            </p>
-            <p className="reading">
-              <strong>{numericValue(lead.value)}</strong>
-              <span>{lead.value == null ? "" : lead.unit}</span>
-            </p>
-            <p className="sampling-period">
-              {lead.periodLabel
-                ? `Sampling period · ${lead.periodLabel}`
-                : "Sampling period · not reported"}
-            </p>
-            {markCount > 0 && (
-              <p className="mark-note">
-                {markCount} marks · 1 mark ≈ {trimNumber(markDose)} {lead.unit}
-                <br />
-                Scaled for visibility, not a molecule count.
-              </p>
-            )}
-            {lead.value === 0 && (
-              <p className="mark-note">
-                Zero receives no contaminant marks. This value is illustrative,
-                not a sample.
-              </p>
-            )}
-            {lead.value == null && (
-              <p className="mark-note">
-                The dotted device means “not reported,” not “clean.”
-              </p>
+            {isLead ? (
+              <>
+                <p className="eyebrow">
+                  {lead.tier === "measured"
+                    ? "Reported lead · 90th percentile"
+                    : lead.tier === "illustrative"
+                      ? "Illustrative lead value"
+                      : "Federal lead result"}
+                </p>
+                <p className="reading">
+                  <strong>{numericValue(lead.value)}</strong>
+                  <span>{lead.value == null ? "" : lead.unit}</span>
+                </p>
+                <p className="sampling-period">
+                  {lead.periodLabel
+                    ? `Sampling period · ${lead.periodLabel}`
+                    : "Sampling period · not reported"}
+                </p>
+                {markCount > 0 && (
+                  <p className="mark-note">
+                    {markCount} marks · 1 mark ≈ {trimNumber(markDose)}{" "}
+                    {lead.unit}
+                    <br />
+                    Scaled for visibility, not a molecule count.
+                  </p>
+                )}
+                {Number(lead.value) === 0 && lead.value != null && (
+                  <p className="mark-note">
+                    Zero receives no contaminant marks. This value is
+                    illustrative, not a sample.
+                  </p>
+                )}
+                {lead.value == null && (
+                  <p className="mark-note">
+                    The dotted device means “not reported,” not “clean.”
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="eyebrow">{activeTab.eyebrow}</p>
+                <p className="reading unavailable-reading">
+                  <strong>{activeTab.status}</strong>
+                </p>
+                <p className="sampling-period">{activeTab.period}</p>
+                <p className="mark-note">
+                  {activeTab.explanation}
+                </p>
+              </>
             )}
           </div>
           <ShareRecord place={result.location.name} />
@@ -337,44 +447,47 @@ function Record({ result, query, complianceStatus, onSystem }) {
 
       <section className="verdict-block">
         <p className="eyebrow">The read</p>
-        <h2>{verdictFor(lead)}</h2>
+        <h2>{isLead ? verdictFor(lead) : activeTab.verdict}</h2>
         <p>
-          Lead’s 15 {LEAD.unit} federal comparison is an action level—a
-          treatment trigger—not a maximum contaminant level.
+          {isLead
+            ? `Lead’s 15 ${LEAD.unit} federal comparison is an action level—a treatment trigger—not a maximum contaminant level.`
+            : activeTab.explanation}
         </p>
       </section>
 
-      <LeadLane lead={lead} />
+      <RecordLane tab={activeTab} lead={lead} />
 
-      <ViolationSummary
-        result={result}
-        complianceStatus={complianceStatus}
-      />
+      <div className="record-meta">
+        <ViolationSummary
+          result={result}
+          complianceStatus={complianceStatus}
+        />
 
-      <section className="system-facts" aria-labelledby="system-facts-title">
-        <h2 id="system-facts-title" className="sr-only">
-          System facts
-        </h2>
-        <Fact
-          label="Serves"
-          value={
-            system.population
-              ? system.population.toLocaleString()
-              : "Not reported"
-          }
-        />
-        <Fact label="Primary source" value={system.sourceType} />
-        <Fact
-          label="ZIP match"
-          value={
-            result.scenario
-              ? "Scenario"
-              : result.resolution.approximate
-                ? "Approximate"
-                : "Direct"
-          }
-        />
-      </section>
+        <section className="system-facts" aria-labelledby="system-facts-title">
+          <h2 id="system-facts-title" className="sr-only">
+            System facts
+          </h2>
+          <Fact
+            label="Serves"
+            value={
+              system.population
+                ? system.population.toLocaleString()
+                : "Not reported"
+            }
+          />
+          <Fact label="Primary source" value={system.sourceType} />
+          <Fact
+            label="ZIP match"
+            value={
+              result.scenario
+                ? "Scenario"
+                : result.resolution.approximate
+                  ? "Approximate"
+                  : "Direct"
+            }
+          />
+        </section>
+      </div>
 
       <section className="action-rows">
         <a
@@ -429,9 +542,9 @@ function Record({ result, query, complianceStatus, onSystem }) {
           <div className="detail-body">
             <p>
               This is a utility-wide federal record, not a complete chemical
-              profile and not a reading from your building. The lead figure is
-              the reported 90th percentile from a compliance sample of taps
-              selected under federal rules.
+              profile and not a reading from your building. Phase 1 compiles a
+              reported lead 90th percentile; the other tabs keep uncompiled
+              fields visible without inventing values.
             </p>
             <p>
               The glass is a visibility encoding. It does not depict literal
@@ -470,7 +583,11 @@ function Record({ result, query, complianceStatus, onSystem }) {
   );
 }
 
-function LeadLane({ lead }) {
+function RecordLane({ tab, lead }) {
+  if (tab.key !== "lead") {
+    return <UnavailableLane tab={tab} />;
+  }
+
   const value = lead.value == null ? null : Number(lead.value);
   const position =
     value == null ? 0 : Math.max(0, Math.min(100, (value / LEAD.legal) * 100));
@@ -521,6 +638,30 @@ function LeadLane({ lead }) {
         Each lane is normalized to its own limit. Percent-of-limit is not a
         cross-contaminant risk score.
       </p>
+    </section>
+  );
+}
+
+function UnavailableLane({ tab }) {
+  return (
+    <section
+      className="lead-lane availability-lane"
+      aria-labelledby={`${tab.key}-lane-title`}
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">
+            {tab.key === "pipes" ? "Inventory status" : "Federal record status"}
+          </p>
+          <h2 id={`${tab.key}-lane-title`}>{tab.label}</h2>
+        </div>
+        <p className="lane-reading">{tab.laneReadout}</p>
+      </div>
+      <div className="lane-scale missing">
+        <span>{tab.status}</span>
+        {tab.legalLabel && <i>{tab.legalLabel}</i>}
+      </div>
+      <p className="lane-footnote">{tab.laneNote}</p>
     </section>
   );
 }
