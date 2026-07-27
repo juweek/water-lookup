@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAsync } from "../lib/useAsync.js";
 import { getByQuery, getComplianceByPwsid } from "../data/waterQuality.js";
-import { SCENARIOS } from "../data/scenarios.js";
-import { LEAD } from "../lib/contaminants.js";
+import { COPPER, LEAD } from "../lib/contaminants.js";
+import { glassComposition } from "../lib/glassComposition.js";
 import LookupInput from "../components/LookupInput.jsx";
 import { ErrorState, Loading } from "../components/Status.jsx";
 import WaterStream from "../viz/WaterStream.jsx";
@@ -14,33 +14,12 @@ const CONTAMINANT_TABS = [
   {
     key: "copper",
     label: "Copper",
-    eyebrow: "Federal copper result",
-    status: "Compiler gap",
-    period: "Copper 90th-percentile rows are not compiled in this release",
-    glassLabel: "Copper result not compiled",
-    verdict:
-      "EPA publishes copper beside lead—but this app’s current index keeps only lead.",
-    explanation:
-      "The source table includes CU90 results. Adding them requires a compiler and display pass; copper uses a 1,300 µg/L action level and health goal.",
-    laneReadout: "No result in this release",
-    laneNote:
-      "No copper value is drawn. The dashed lane marks a field this Phase 1 snapshot does not compile.",
-    legalLabel: "1,300 µg/L action level and health goal",
+    glassLabel: "Copper result not reported",
   },
   {
     key: "bacteria",
     label: "Bacteria",
-    eyebrow: "Presence / absence record",
-    status: "Compliance only",
-    period: "Sample-level presence / absence is not compiled in this release",
-    glassLabel: "Bacteria sample record not compiled",
-    verdict:
-      "Bacteria is a yes-or-no monitoring record—not a concentration to pour into this glass.",
-    explanation:
-      "The federal record can report Revised Total Coliform Rule compliance events. A sample-level view needs reported positive / negative results and dates; assumptions cannot stand in for tests.",
-    laneReadout: "Presence / absence data not compiled",
-    laneNote:
-      "A dotted state stands in for the unavailable monitoring strip; it does not imply a negative test.",
+    glassLabel: "Sample-level bacteria results not reported here",
   },
   {
     key: "pipes",
@@ -153,17 +132,6 @@ export default function WaterPage() {
     navigate(`/${encodeURIComponent(query)}${suffix ? `?${suffix}` : ""}`);
   }
 
-  if (!query) {
-    return (
-      <Landing
-        theme={theme}
-        onTheme={setTheme}
-        onSubmit={submit}
-        onScenario={(id) => navigate(`/${id}`)}
-      />
-    );
-  }
-
   return (
     <section className="record-shell" aria-busy={state.status === "loading"}>
       <RecordToolbar
@@ -197,90 +165,6 @@ export default function WaterPage() {
         />
       )}
     </section>
-  );
-}
-
-function Landing({ theme, onTheme, onSubmit, onScenario }) {
-  return (
-    <div className="landing">
-      <div className="landing-topline">
-        <span className="eyebrow">Gourmet Data · Water</span>
-        <ThemeToggle value={theme} onChange={onTheme} />
-      </div>
-      <div className="landing-grid">
-        <div className="landing-copy">
-          <div className="brand-mark" aria-hidden="true" />
-          <p className="eyebrow">The federal record, poured out</p>
-          <h1>
-            What’s actually
-            <br />
-            in the glass?
-          </h1>
-          <p className="landing-deck">
-            Search a U.S. ZIP or city to see what EPA publishes for a community
-            water system—and the shape of what it does not publish.
-          </p>
-          <LookupInput large onSubmit={onSubmit} />
-          <ScenarioBar onPick={onScenario} />
-        </div>
-        <div className="landing-object" aria-hidden="true">
-          <span className="landing-orb" />
-          <span className="landing-pour" />
-          <span className="landing-glass">
-            <span className="landing-water" />
-            <span className="landing-residue" />
-          </span>
-          <span className="landing-object-note">
-            A record is not a tap test.
-          </span>
-        </div>
-      </div>
-      <div className="landing-principles" aria-label="How to read this tool">
-        <Principle
-          number="01"
-          title="No water score"
-          text="Measurements remain separate, with their own units and limits."
-        />
-        <Principle
-          number="02"
-          title="Dates stay attached"
-          text="Every displayed measurement carries its sampling period."
-        />
-        <Principle
-          number="03"
-          title="Missing is visible"
-          text="Unreported never becomes zero, safe, or clean."
-        />
-      </div>
-    </div>
-  );
-}
-
-function Principle({ number, title, text }) {
-  return (
-    <div className="principle">
-      <span>{number}</span>
-      <strong>{title}</strong>
-      <p>{text}</p>
-    </div>
-  );
-}
-
-function ScenarioBar({ onPick }) {
-  return (
-    <div className="scenario-bar">
-      <span className="eyebrow">Try a published example</span>
-      {SCENARIOS.map((scenario) => (
-        <button
-          key={scenario.id}
-          type="button"
-          title={scenario.description}
-          onClick={() => onPick(scenario.id)}
-        >
-          {scenario.label} <span aria-hidden="true">→</span>
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -330,19 +214,34 @@ function Record({
   onContaminant,
   onSystem,
 }) {
-  const { lead, system } = result;
+  const { bacteriaRecord, copper, lead, system } = result;
   const activeTab =
     CONTAMINANT_TABS.find((tab) => tab.key === activeContaminant) ??
     CONTAMINANT_TABS[0];
-  const isLead = activeTab.key === "lead";
-  const glassResult = isLead
-    ? result
-    : { ...result, lead: { ...lead, value: null, periodLabel: null } };
-  const markCount =
-    lead.value == null || Number(lead.value) <= 0
-      ? 0
-      : Math.min(220, Math.max(1, Math.round(Number(lead.value) / 0.05)));
-  const markDose = markCount > 0 ? Number(lead.value) / markCount : 0;
+  const measurement =
+    activeTab.key === "lead"
+      ? lead
+      : activeTab.key === "copper"
+        ? copper
+        : null;
+  const isMeasurement = Boolean(measurement);
+  const glassMeasurement = measurement || {
+    key: activeTab.key,
+    value: null,
+    unit: "",
+    periodLabel: null,
+    tier: "unmeasured",
+    definition: {
+      key: activeTab.key,
+      shortName: activeTab.label,
+    },
+  };
+  const glassResult = { ...result, visualMeasurement: glassMeasurement };
+  const visibleMark = glassComposition(glassResult, EMPTY_HIDDEN)
+    .contaminants[0];
+  const markCount = visibleMark?.count || 0;
+  const markDose =
+    markCount > 0 ? Number(glassMeasurement.value) / markCount : 0;
   const alternatives = result.systems.filter(
     (item) => item.pwsid !== system.pwsid,
   );
@@ -394,49 +293,60 @@ function Record({
               hidden={EMPTY_HIDDEN}
               mode={theme}
               unreportedLabel={
-                isLead ? "Lead result not reported" : activeTab.glassLabel
+                isMeasurement
+                  ? `${measurement.definition.shortName} result not reported`
+                  : activeTab.glassLabel
               }
             />
           </div>
           <div className="reading-lockup">
-            {isLead ? (
+            {isMeasurement ? (
               <>
                 <p className="eyebrow">
-                  {lead.tier === "measured"
-                    ? "Reported lead · 90th percentile"
-                    : lead.tier === "illustrative"
-                      ? "Illustrative lead value"
-                      : "Federal lead result"}
+                  {measurement.tier === "measured"
+                    ? `Reported ${measurement.definition.shortName.toLowerCase()} · 90th percentile`
+                    : measurement.tier === "illustrative"
+                      ? `Illustrative ${measurement.definition.shortName.toLowerCase()} value`
+                      : `Federal ${measurement.definition.shortName.toLowerCase()} result`}
                 </p>
                 <p className="reading">
-                  <strong>{numericValue(lead.value)}</strong>
-                  <span>{lead.value == null ? "" : lead.unit}</span>
+                  <strong>{numericValue(measurement.value)}</strong>
+                  <span>
+                    {measurement.value == null ? "" : measurement.unit}
+                  </span>
                 </p>
                 <p className="sampling-period">
-                  {lead.periodLabel
-                    ? `Sampling period · ${lead.periodLabel}`
+                  {measurement.periodLabel
+                    ? `Sampling period · ${measurement.periodLabel}`
                     : "Sampling period · not reported"}
                 </p>
                 {markCount > 0 && (
                   <p className="mark-note">
                     {markCount} marks · 1 mark ≈ {trimNumber(markDose)}{" "}
-                    {lead.unit}
+                    {measurement.unit}
                     <br />
                     Scaled for visibility, not a molecule count.
                   </p>
                 )}
-                {Number(lead.value) === 0 && lead.value != null && (
-                  <p className="mark-note">
-                    Zero receives no contaminant marks. This value is
-                    illustrative, not a sample.
-                  </p>
-                )}
-                {lead.value == null && (
+                {Number(measurement.value) === 0 &&
+                  measurement.value != null && (
+                    <p className="mark-note">
+                      Zero receives no contaminant marks. This value is
+                      illustrative, not a sample.
+                    </p>
+                  )}
+                {measurement.value == null && (
                   <p className="mark-note">
                     The dotted device means “not reported,” not “clean.”
                   </p>
                 )}
               </>
+            ) : activeTab.key === "bacteria" ? (
+              <BacteriaReading
+                record={bacteriaRecord}
+                status={complianceStatus}
+                scenario={result.scenario}
+              />
             ) : (
               <>
                 <p className="eyebrow">{activeTab.eyebrow}</p>
@@ -454,15 +364,35 @@ function Record({
 
       <section className="verdict-block">
         <p className="eyebrow">The read</p>
-        <h2>{isLead ? verdictFor(lead) : activeTab.verdict}</h2>
+        <h2>
+          {isMeasurement
+            ? verdictForMeasurement(measurement)
+            : activeTab.key === "bacteria"
+              ? bacteriaVerdict(
+                  bacteriaRecord,
+                  complianceStatus,
+                  result.scenario,
+                )
+              : activeTab.verdict}
+        </h2>
         <p>
-          {isLead
-            ? `Lead’s 15 ${LEAD.unit} federal comparison is an action level—a treatment trigger—not a maximum contaminant level.`
-            : activeTab.explanation}
+          {isMeasurement
+            ? measurement.key === "lead"
+              ? `Lead’s 15 ${LEAD.unit} federal comparison is an action level—a treatment trigger—not a maximum contaminant level.`
+              : `Copper’s ${COPPER.legal.toLocaleString()} ${COPPER.unit} federal comparison is an action level. This system-wide result cannot establish the copper level at every tap.`
+            : activeTab.key === "bacteria"
+              ? "This tab counts federal Revised Total Coliform Rule violation events. It is not a complete history of positive and negative samples, and zero violations does not mean bacteria-free water."
+              : activeTab.explanation}
         </p>
       </section>
 
-      <RecordLane tab={activeTab} lead={lead} />
+      <RecordLane
+        tab={activeTab}
+        measurement={measurement}
+        bacteriaRecord={bacteriaRecord}
+        complianceStatus={complianceStatus}
+        scenario={result.scenario}
+      />
 
       <div className="record-meta">
         <h2 className="sr-only">System facts and federal compliance record</h2>
@@ -542,14 +472,15 @@ function Record({
             <p>
               This is a utility-wide federal record, not a complete chemical
               profile and not a reading from your building. This release
-              compiles reported lead 90th percentiles. Copper is present in the
-              same source but not yet compiled; bacteria and PFAS require
-              different federal tables and sampling grammars.
+              compiles reported lead and copper 90th percentiles. The bacteria
+              tab counts federal compliance events; it does not reconstruct
+              every positive and negative sample. PFAS requires a separate UCMR
+              5 bulk-data compile.
             </p>
             <p>
               The glass is a visibility encoding. It does not depict literal
-              lead particles, and a compliance result cannot establish the
-              concentration at every tap.
+              contaminant particles, and a compliance result cannot establish
+              the concentration at every tap.
             </p>
           </div>
         </details>
@@ -583,27 +514,116 @@ function Record({
   );
 }
 
-function RecordLane({ tab, lead }) {
-  if (tab.key !== "lead") {
+function BacteriaReading({ record, status, scenario }) {
+  if (scenario) {
+    return (
+      <>
+        <p className="eyebrow">Federal bacteria compliance record</p>
+        <p className="reading unavailable-reading">
+          <strong>Not assigned</strong>
+        </p>
+        <p className="sampling-period">Historical scenario</p>
+        <p className="mark-note">
+          Illustrative scenarios do not receive federal violation counts.
+        </p>
+      </>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <>
+        <p className="eyebrow">Federal bacteria compliance record</p>
+        <p className="reading unavailable-reading">
+          <strong>Record unavailable</strong>
+        </p>
+        <p className="sampling-period">EPA lookup could not be completed</p>
+        <p className="mark-note">
+          No bacteria status is inferred while the federal table is unavailable.
+        </p>
+      </>
+    );
+  }
+
+  if (!record) {
+    return (
+      <>
+        <p className="eyebrow">Federal bacteria compliance record</p>
+        <p className="reading unavailable-reading">
+          <strong>Checking record</strong>
+        </p>
+        <p className="sampling-period">EPA violation table · last 10 years</p>
+        <p className="mark-note">
+          Looking for reported total-coliform and E. coli compliance events.
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <p className="eyebrow">Federal bacteria compliance record</p>
+      <p className="reading">
+        <strong>{record.healthViolationCount}</strong>
+        <span>
+          health-based violation
+          {record.healthViolationCount === 1 ? "" : "s"}
+        </span>
+      </p>
+      <p className="sampling-period">Record period · {record.periodLabel}</p>
+      <p className="mark-note">
+        {record.monitoringViolationCount} monitoring/reporting lapse
+        {record.monitoringViolationCount === 1 ? "" : "s"} in the same record.
+        <br />
+        Violation history is not a complete sample history.
+      </p>
+    </>
+  );
+}
+
+function RecordLane({
+  tab,
+  measurement,
+  bacteriaRecord,
+  complianceStatus,
+  scenario,
+}) {
+  if (tab.key === "bacteria") {
+    return (
+      <BacteriaLane
+        record={bacteriaRecord}
+        status={complianceStatus}
+        scenario={scenario}
+      />
+    );
+  }
+  if (!measurement) {
     return <UnavailableLane tab={tab} />;
   }
 
-  const value = lead.value == null ? null : Number(lead.value);
+  const definition = measurement.definition;
+  const value = measurement.value == null ? null : Number(measurement.value);
   const position =
-    value == null ? 0 : Math.max(0, Math.min(100, (value / LEAD.legal) * 100));
-  const over = value != null && value > LEAD.legal;
+    value == null
+      ? 0
+      : Math.max(0, Math.min(100, (value / definition.legal) * 100));
+  const over = value != null && value > definition.legal;
+  const isLead = measurement.key === "lead";
 
   return (
-    <section className="lead-lane" aria-labelledby="lead-lane-title">
+    <section
+      className={`lead-lane ${isLead ? "" : "copper-lane"}`}
+      aria-labelledby={`${measurement.key}-lane-title`}
+    >
       <div className="section-heading">
         <div>
           <p className="eyebrow">Against whose line?</p>
-          <h2 id="lead-lane-title">Lead</h2>
+          <h2 id={`${measurement.key}-lane-title`}>{definition.shortName}</h2>
         </div>
         <p className="lane-reading">
           {value == null
             ? "No result reported"
-            : `${numericValue(value)} of ${LEAD.legal} ${LEAD.unit}`}
+            : `${numericValue(value)} of ${definition.legal.toLocaleString()} ${definition.unit}`}
         </p>
       </div>
       <div className={`lane-scale ${value == null ? "missing" : ""}`}>
@@ -616,28 +636,79 @@ function RecordLane({ tab, lead }) {
             <span className="sr-only">Your reading: {numericValue(value)}</span>
           </span>
         )}
-        <span className="lane-tick health" />
-        <span className="lane-tick who" />
+        {isLead && <span className="lane-tick health" />}
+        {isLead && <span className="lane-tick who" />}
         <span className="lane-tick legal" />
       </div>
       <div className="lane-labels" aria-hidden="true">
-        <span className="health-label">
-          <b>0</b>
-          EPA health goal
-        </span>
-        <span className="who-label">
-          <b>10</b>
-          WHO guideline
-        </span>
+        {isLead ? (
+          <>
+            <span className="health-label">
+              <b>0</b>
+              EPA health goal
+            </span>
+            <span className="who-label">
+              <b>10</b>
+              WHO guideline
+            </span>
+          </>
+        ) : (
+          <span className="health-label">
+            <b>0</b>
+            start of scale
+          </span>
+        )}
         <span className="legal-label">
-          <b>15</b>
-          US action level
+          <b>{definition.legal.toLocaleString()}</b>
+          {isLead ? "US action level" : "health goal + action level"}
         </span>
       </div>
       <p className="lane-footnote">
         Each lane is normalized to its own limit. Percent-of-limit is not a
         cross-contaminant risk score.
       </p>
+    </section>
+  );
+}
+
+function BacteriaLane({ record, status, scenario }) {
+  let readout = "Checking EPA record";
+  let state = "Loading";
+  let note =
+    "The federal table is being checked for total-coliform and E. coli compliance events.";
+
+  if (scenario) {
+    readout = "No compliance count assigned";
+    state = "Scenario";
+    note = "Illustrative scenarios do not receive federal violation counts.";
+  } else if (status === "error") {
+    readout = "Federal table unavailable";
+    state = "Unavailable";
+    note = "No negative or positive bacteria status is inferred from an error.";
+  } else if (record) {
+    readout = `${record.healthViolationCount} health-based · ${record.monitoringViolationCount} monitoring`;
+    state = record.hasReportedEvents ? "Events reported" : "No events reported";
+    note =
+      "This is a federal violation record, not every positive and negative sample. No reported violations does not mean bacteria-free water.";
+  }
+
+  return (
+    <section
+      className="lead-lane availability-lane"
+      aria-labelledby="bacteria-lane-title"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Federal record status</p>
+          <h2 id="bacteria-lane-title">Bacteria</h2>
+        </div>
+        <p className="lane-reading">{readout}</p>
+      </div>
+      <div className="lane-scale missing">
+        <span>{state}</span>
+        <i>Last 10 years</i>
+      </div>
+      <p className="lane-footnote">{note}</p>
     </section>
   );
 }
@@ -734,20 +805,46 @@ function ShareRecord({ place }) {
   );
 }
 
-function verdictFor(lead) {
-  if (lead.value == null) {
-    return "No federal lead result is published. Missing is not clean.";
+function verdictForMeasurement(measurement) {
+  const definition = measurement.definition;
+  const name = definition.shortName.toLowerCase();
+  if (measurement.value == null) {
+    return `No federal ${name} result is published. Missing is not clean.`;
   }
-  const value = Number(lead.value);
+  const value = Number(measurement.value);
   if (value === 0) {
-    return lead.tier === "illustrative"
+    return measurement.tier === "illustrative"
       ? "A conceptual zero—not a sample from a tap."
-      : "At EPA’s health goal of zero.";
+      : measurement.key === "lead"
+        ? "At EPA’s health goal of zero."
+        : "A reported zero in the system-wide federal record.";
   }
-  if (value > LEAD.legal) {
-    return "Above the federal action level—and above the health goal.";
+  if (value > definition.legal) {
+    return measurement.key === "lead"
+      ? "Above the federal action level—and above the health goal."
+      : "Above the federal copper action level.";
   }
-  return "Under the federal action level. Above EPA’s health goal of zero.";
+  return measurement.key === "lead"
+    ? "Under the federal action level. Above EPA’s health goal of zero."
+    : "Under the federal copper action level.";
+}
+
+function bacteriaVerdict(record, status, scenario) {
+  if (scenario) {
+    return "No federal bacteria compliance count is assigned to this scenario.";
+  }
+  if (status === "error") {
+    return "The federal bacteria compliance record is temporarily unavailable.";
+  }
+  if (!record) {
+    return "Checking the federal bacteria compliance record.";
+  }
+  if (record.healthViolationCount > 0) {
+    return `${record.healthViolationCount} reported health-based bacteria violation${
+      record.healthViolationCount === 1 ? "" : "s"
+    } in the last 10 years.`;
+  }
+  return "No health-based bacteria violations appear in this federal 10-year record.";
 }
 
 function numericValue(value) {

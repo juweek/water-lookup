@@ -1,6 +1,11 @@
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import Layout from './components/Layout.jsx';
-import WaterPage from './pages/WaterPage.jsx';
+import {
+  BrowserRouter as Router,
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
+import Layout from "./components/Layout.jsx";
+import WaterPage from "./pages/WaterPage.jsx";
 
 export default function App() {
   return (
@@ -10,9 +15,9 @@ export default function App() {
     >
       <Layout>
         <Routes>
-          <Route path="/" element={<WaterPage />} />
+          <Route path="/" element={<Navigate to="/90012" replace />} />
           <Route path="/:query" element={<WaterPage />} />
-          <Route path="*" element={<WaterPage />} />
+          <Route path="*" element={<Navigate to="/90012" replace />} />
         </Routes>
       </Layout>
     </Router>

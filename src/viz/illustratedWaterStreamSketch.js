@@ -14,7 +14,19 @@ const PENCIL = "#5a534d";
 const WATER = "#5d8fc8";
 const WATER_DARK = "#38699f";
 const WATER_LIGHT = "#9fc7e5";
-const LEAD = "#343434";
+
+function hexToRgb(value) {
+  const hex = String(value || "#d34f42").replace("#", "");
+  const normalized =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((part) => part + part)
+          .join("")
+      : hex;
+  const parsed = Number.parseInt(normalized, 16);
+  return [(parsed >> 16) & 255, (parsed >> 8) & 255, parsed & 255];
+}
 
 function hashSeed(text) {
   return [...String(text)].reduce(
@@ -95,6 +107,7 @@ export function illustratedWaterStreamSketch(p, data) {
         size: p.random(1.1, 2.25),
         settledX: p.random(-0.82, 0.82),
         tier: item.tier,
+        rgb: hexToRgb(item.color),
       })),
     );
   }
@@ -182,8 +195,6 @@ export function illustratedWaterStreamSketch(p, data) {
   }
 
   function drawLead(b, t, dt) {
-    p.stroke(LEAD);
-    p.fill(LEAD);
     for (const mark of leadMarks) {
       if (!reducedMotion) mark.age += dt;
       if (mark.age >= mark.life) {
@@ -210,8 +221,8 @@ export function illustratedWaterStreamSketch(p, data) {
         flow +
         mark.z * 2;
       const alpha = mark.tier === "illustrative" ? 120 : 205;
-      p.stroke(52, 52, 52, alpha);
-      p.fill(52, 52, 52, alpha);
+      p.stroke(...mark.rgb, alpha);
+      p.fill(...mark.rgb, alpha);
       p.strokeWeight(0.75);
       p.circle(x, y, mark.size);
       if (mark.size > 1.8) {
@@ -260,7 +271,7 @@ export function illustratedWaterStreamSketch(p, data) {
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     rebuild();
     p.describe(
-      "An illustrated stream of blue brush marks falls into a tall hand-drawn glass. Small graphite-gray lead marks circulate in the water before slowly settling.",
+      "An illustrated stream of blue brush marks falls into a tall hand-drawn glass. Small warm-red contaminant marks circulate in the water before slowly settling.",
     );
 
     const canvas = p.drawingContext?.canvas;

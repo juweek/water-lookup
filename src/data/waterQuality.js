@@ -1,4 +1,5 @@
 import {
+  COPPER,
   contaminantForCode,
   LEAD,
   toDisplayUnit,
@@ -8,6 +9,7 @@ import { getScenario } from "./scenarios.js";
 const EF_BASE = "https://data.epa.gov/efservice";
 const ZIP_RE = /^\d{5}$/;
 const TEN_YEARS_MS = 10 * 365.25 * 24 * 60 * 60 * 1000;
+const BACTERIA_CODES = new Set(["3014", "3100"]);
 const stateIndexCache = new Map();
 
 const STATE_CODES = {
@@ -164,7 +166,8 @@ function normalizeIndexedSystem(pwsid, profile, stateCode, quarter) {
     stateCode,
     city: profile[3] || null,
     zip: profile[4] || null,
-    lead: indexedLead(profile[5], quarter),
+    lead: indexedMeasurement(profile[5], quarter, LEAD),
+    copper: indexedMeasurement(profile[6], quarter, COPPER),
   };
 }
 
@@ -214,29 +217,30 @@ function periodLabel(startDate, endDate) {
   return end || start;
 }
 
-function indexedLead(row, quarter) {
+function indexedMeasurement(row, quarter, definition) {
+  const name = definition.shortName.toLowerCase();
   if (!row) {
     return {
-      key: "lead",
+      key: definition.key,
       value: null,
-      unit: LEAD.unit,
+      unit: definition.unit,
       date: null,
       periodLabel: null,
       tier: "unmeasured",
-      definition: LEAD,
-      note: `No 90th-percentile lead result appears in EPA’s ${quarter} federal snapshot for this system.`,
+      definition,
+      note: `No 90th-percentile ${name} result appears in EPA’s ${quarter} federal snapshot for this system.`,
     };
   }
   const startDate = isoDate(row[2]);
   const endDate = isoDate(row[3]);
   return {
-    key: "lead",
-    value: toDisplayUnit(row[0], row[1], LEAD),
-    unit: LEAD.unit,
+    key: definition.key,
+    value: toDisplayUnit(row[0], row[1], definition),
+    unit: definition.unit,
     date: endDate,
     periodLabel: periodLabel(startDate, endDate),
     tier: "measured",
-    definition: LEAD,
+    definition,
     note: `EPA’s ${quarter} snapshot reports this system-wide 90th percentile, not the concentration at every tap.`,
   };
 }
@@ -369,6 +373,8 @@ export async function getByQuery(key) {
     violations: null,
     healthViolationCount: null,
     lead: selected.lead,
+    copper: selected.copper,
+    bacteriaRecord: null,
     scenario: false,
     source: {
       label: `EPA ECHO SDWIS ${dataQuarter} — ${selected.pwsid}`,
@@ -383,10 +389,31 @@ export async function getComplianceByPwsid(pwsid) {
   const healthViolations = violations.filter(
     (row) => row.is_health_based_ind === "Y",
   );
+  const bacteriaViolations = violations.filter((row) =>
+    BACTERIA_CODES.has(String(row.contaminant_code || "")),
+  );
+  const bacteriaHealthViolations = bacteriaViolations.filter(
+    (row) => row.is_health_based_ind === "Y",
+  );
+  const bacteriaMonitoringViolations = bacteriaViolations.filter(
+    (row) => row.is_health_based_ind !== "Y",
+  );
+  const latestBacteriaDate = bacteriaViolations
+    .map((row) => isoDate(row.compl_per_begin_date))
+    .filter(Boolean)
+    .sort()
+    .at(-1);
   return {
     pwsid,
     violations,
     healthViolationCount: healthViolations.length,
+    bacteriaRecord: {
+      periodLabel: "Last 10 years",
+      healthViolationCount: bacteriaHealthViolations.length,
+      monitoringViolationCount: bacteriaMonitoringViolations.length,
+      latestDate: latestBacteriaDate,
+      hasReportedEvents: bacteriaViolations.length > 0,
+    },
     contaminantViolations: healthViolations
       .map((row) => ({
         row,

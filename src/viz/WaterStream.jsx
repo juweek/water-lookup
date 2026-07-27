@@ -16,7 +16,8 @@ export default function WaterStream({
   unreportedLabel = "Lead result not reported",
 }) {
   const sketchData = useMemo(() => ({ result, hidden }), [result, hidden]);
-  const unmeasured = result?.lead?.value == null;
+  const measurement = result?.visualMeasurement || result?.lead;
+  const unmeasured = measurement?.value == null;
 
   return (
     <div className="relative">

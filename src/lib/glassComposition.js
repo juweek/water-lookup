@@ -4,29 +4,35 @@
  * additive floors: a measured zero produces zero contaminant marks.
  */
 export function glassComposition(result, hidden = []) {
-  const lead = result?.lead;
-  const value = Math.max(0, Number(lead?.value ?? 0));
-  const legal = lead?.definition?.legal ?? 15;
+  const measurement = result?.visualMeasurement || result?.lead;
+  const value = Math.max(0, Number(measurement?.value ?? 0));
+  const key = measurement?.key || "lead";
+  const definition = measurement?.definition;
+  const visualMarkDose =
+    Number(definition?.visualMarkDose) > 0
+      ? Number(definition.visualMarkDose)
+      : key === "lead"
+        ? 0.05
+        : Math.max(1, Number(definition?.legal || 100) / 180);
 
   const contaminants = [];
-  if (value > 0 && !hidden.includes("lead")) {
+  if (value > 0 && !hidden.includes(key)) {
     contaminants.push({
-      key: "lead",
-      label: "Lead",
-      tier: lead.tier || "measured",
-      color:
-        lead.definition?.particleColor || lead.definition?.color || "#30343a",
-      // Lead uses the approved 1 mark = 0.05 µg/L grammar until the WebGL
-      // safety cap. The UI recalculates and prints the dose when the cap is hit,
-      // so the visible count and caption never disagree.
-      count: Math.min(220, Math.max(1, Math.round(value / 0.05))),
+      key,
+      label: definition?.shortName || measurement?.key || "Contaminant",
+      tier: measurement.tier || "measured",
+      color: definition?.particleColor || definition?.color || "#d34f42",
+      // Every contaminant declares its own visible mark dose. The UI prints
+      // the recalculated dose if the safety cap is reached, so the caption and
+      // visible count stay aligned.
+      count: Math.min(220, Math.max(1, Math.round(value / visualMarkDose))),
       value,
     });
   }
 
   return {
     contaminants,
-    unmeasured: lead?.value == null,
+    unmeasured: measurement?.value == null,
   };
 }
 

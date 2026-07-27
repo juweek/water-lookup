@@ -23,13 +23,30 @@ export const CONTAMINANTS = {
     health: 0,
     healthType: "EPA health goal (MCLG)",
     color: "#d56f5b",
-    // The interface keeps a warm comparison-line accent, while the glass uses
-    // graphite-gray marks. Those marks are a visibility encoding, not a claim
-    // that dissolved lead would be visible in tap water.
-    particleColor: "#30343a",
+    // The warm red makes the visibility encoding legible through the blue
+    // water. It is not a claim that dissolved lead would be visible.
+    particleColor: "#d34f42",
+    visualMarkDose: 0.05,
     sourceUrl: EPA_LEAD,
     effectiveNote:
       "The current federal action level is 15 µg/L. EPA’s 2024 LCRI lowers the threshold to 10 µg/L for future compliance.",
+  },
+  copper: {
+    key: "copper",
+    codes: ["CU90", "1022"],
+    name: "Copper",
+    shortName: "Copper",
+    unit: "µg/L",
+    legal: 1300,
+    legalType: "Federal action level",
+    health: 1300,
+    healthType: "EPA health goal (MCLG)",
+    color: "#a96843",
+    particleColor: "#cf8250",
+    visualMarkDose: 5,
+    sourceUrl: EPA_NPDWR,
+    effectiveNote:
+      "EPA regulates copper through a 1,300 µg/L action level; the federal health goal is also 1,300 µg/L.",
   },
   arsenic: {
     key: "arsenic",
@@ -75,6 +92,7 @@ export const CONTAMINANTS = {
 };
 
 export const LEAD = CONTAMINANTS.lead;
+export const COPPER = CONTAMINANTS.copper;
 
 export function contaminantForCode(code) {
   return Object.values(CONTAMINANTS).find((item) =>

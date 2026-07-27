@@ -144,7 +144,8 @@ export function createWaterStream(
   { result, hidden = [] } = {},
 ) {
   const composition = glassComposition(result, hidden);
-  const unmeasured = result?.lead?.value == null;
+  const measurement = result?.visualMeasurement || result?.lead;
+  const unmeasured = measurement?.value == null;
   const dim = unmeasured ? 0.45 : 1;
 
   let width = Math.max(260, Math.min(620, container.clientWidth || 520));
