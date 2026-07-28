@@ -20,7 +20,9 @@ it does not publish.
 ## Architecture
 
 `/:query` → `WaterPage` → `useAsync(getByQuery, key)` →
-geocode → resolve systems → fetch system violations + lead results/sample dates.
+geocode → query EPA Service Areas V3 (quarterly city/ZIP fallback) → resolve
+systems → load compiled lead/copper + UCMR 5/service-line records → fetch system
+violations.
 
 The optional `?system=PWSID` parameter selects an alternate matched system.
 `/flint` and `/distilled` short-circuit network access through scenarios.
@@ -46,5 +48,5 @@ Zero values receive no contaminant marks.
 
 ## Deferred
 
-PFAS/UCMR5, the compiled ZIP crosswalk, bottled/private-well scenarios, and the
-national map are Phases 2–3. Do not slip them into Phase 1 maintenance.
+Bottled/private-well scenarios and the national map remain later phases. Do not
+slip them into maintenance without an explicit request.

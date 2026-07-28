@@ -18,9 +18,6 @@ export default function WaterStream({
   return (
     <div className="relative">
       <RealWaterStream result={result} hidden={hidden} />
-      <p className="water-interaction-hint" aria-hidden="true">
-        Touch the water · it ripples
-      </p>
       {unmeasured && (
         <p className="label-caps pointer-events-none absolute left-1/2 top-[58%] w-max max-w-[82%] -translate-x-1/2 rounded-xl border border-dashed border-ink-muted/70 px-4 py-2 text-center !text-ink-muted">
           {unreportedLabel}

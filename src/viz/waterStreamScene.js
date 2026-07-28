@@ -43,6 +43,7 @@ const GLASS_BOT_HALF = 3.35; // …and at floor
 const GLASS_DEPTH = 1.7; // half-depth (z) of the water body
 const GRAVITY = 15;
 const CAMERA_FOV = 37;
+const POINTER_RIPPLE_DURATION = 2.1;
 
 const WATER_DEEP = [0.09, 0.33, 0.58];
 const WATER_LIGHT = [0.5, 0.8, 0.95];
@@ -153,15 +154,15 @@ export function createWaterStream(
     let y = ambientSurfaceY(x, z, t);
     for (const impulse of pointerRipples) {
       const age = t - impulse.started;
-      if (age < 0 || age >= 1.7) continue;
+      if (age < 0 || age >= POINTER_RIPPLE_DURATION) continue;
       const dx = x - impulse.x;
       const dz = z - impulse.z;
       const radius = Math.sqrt(dx * dx + dz * dz);
-      const envelope = 1 - age / 1.7;
+      const envelope = 1 - age / POINTER_RIPPLE_DURATION;
       y +=
         impulse.strength *
-        Math.sin(radius * 5.1 - age * 10.5) *
-        Math.exp(-radius * 0.72) *
+        Math.sin(radius * 4.8 - age * 9.4) *
+        Math.exp(-radius * 0.58) *
         envelope;
     }
     return y;
@@ -647,7 +648,7 @@ export function createWaterStream(
     }
     while (
       pointerRipples.length &&
-      elapsed - pointerRipples[0].started >= 1.7
+      elapsed - pointerRipples[0].started >= POINTER_RIPPLE_DURATION
     ) {
       pointerRipples.shift();
     }
@@ -678,22 +679,24 @@ export function createWaterStream(
     if (pointerRipples.length >= 4) pointerRipples.shift();
     pointerRipples.push({
       x: (xRatio * 2 - 1) * surfHalf,
-      z: 0,
+      // The front edge is what reads most clearly through the glass. Keeping
+      // the impulse near it prevents the depth falloff from hiding the input.
+      z: GLASS_DEPTH * 0.78,
       started: elapsed,
       strength,
     });
   }
 
   function handlePointerMove(event) {
-    if (event.pointerType !== "mouse") return;
+    if (event.pointerType && event.pointerType !== "mouse") return;
     const now = performance.now();
-    if (now - lastPointerRipple < 110) return;
+    if (now - lastPointerRipple < 130) return;
     lastPointerRipple = now;
-    addPointerRipple(event, 0.08);
+    addPointerRipple(event, 0.16);
   }
 
   function handlePointerDown(event) {
-    addPointerRipple(event, 0.24);
+    addPointerRipple(event, 0.38);
   }
 
   function handleKeyDown(event) {
@@ -702,9 +705,9 @@ export function createWaterStream(
     if (pointerRipples.length >= 4) pointerRipples.shift();
     pointerRipples.push({
       x: 0,
-      z: 0,
+      z: GLASS_DEPTH * 0.78,
       started: elapsed,
-      strength: 0.24,
+      strength: 0.38,
     });
   }
 

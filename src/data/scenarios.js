@@ -54,7 +54,6 @@ const presets = {
       definition: COPPER,
       note: "This historical lead scenario does not assign a copper value.",
     },
-    bacteriaRecord: null,
     scenario: true,
     blurb:
       "A published snapshot from the water crisis. The official compliance sample was criticized for methods that biased results low; this scenario uses the independent 2015 research sample and labels it as such.",
@@ -101,7 +100,6 @@ const presets = {
       definition: COPPER,
       note: "A conceptual zero used to show what zero looks like. It is not a sample.",
     },
-    bacteriaRecord: null,
     scenario: true,
     blurb:
       "A conceptual baseline: contaminants are set to zero. Real distilled water can pick up material from storage, containers, or plumbing.",

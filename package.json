@@ -8,7 +8,9 @@
     "start": "vite",
     "dev": "vite",
     "build": "vite build && node scripts/build-sites-worker.mjs",
-    "data:refresh": "node scripts/build-water-index.mjs",
+    "data:refresh": "npm run data:refresh:core && npm run data:refresh:phase2",
+    "data:refresh:core": "node scripts/build-water-index.mjs",
+    "data:refresh:phase2": "node scripts/build-phase2-index.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

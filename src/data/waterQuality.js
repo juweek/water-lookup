@@ -8,9 +8,16 @@ import { getScenario } from "./scenarios.js";
 import { getCuratedCity } from "./randomCities.js";
 
 const EF_BASE = "https://data.epa.gov/efservice";
+const SERVICE_AREA_URL =
+  "https://services.arcgis.com/cJ9YHowT8TU7DUyn/ArcGIS/rest/services/Water_System_Boundaries/FeatureServer/0/query";
+const SERVICE_AREA_SOURCE_URL =
+  "https://www.epa.gov/ground-water-and-drinking-water/public-water-system-service-areas";
+const SERVICE_LINE_SOURCE_URL =
+  "https://www.epa.gov/waterfinancecenter/water-infrastructure-and-capacity-assessment-tool";
+const UCMR5_SOURCE_URL =
+  "https://www.epa.gov/dwucmr/occurrence-data-unregulated-contaminant-monitoring-rule";
 const ZIP_RE = /^\d{5}$/;
 const TEN_YEARS_MS = 10 * 365.25 * 24 * 60 * 60 * 1000;
-const BACTERIA_CODES = new Set(["3014", "3100"]);
 const stateIndexCache = new Map();
 
 const STATE_CODES = {
@@ -171,6 +178,48 @@ function normalizeIndexedSystem(pwsid, profile, stateCode, quarter) {
     zip: profile[4] || null,
     lead: indexedMeasurement(profile[5], quarter, LEAD),
     copper: indexedMeasurement(profile[6], quarter, COPPER),
+    pipeInventory: indexedPipeInventory(profile[7]),
+    pfas: indexedPfasRecord(profile[8]),
+  };
+}
+
+function indexedPipeInventory(row) {
+  if (!row) return null;
+  return {
+    reportingPeriod: row[0] || null,
+    galvanized: row[1],
+    lead: row[2],
+    unknown: row[3],
+    nonLead: row[4],
+    total: row[5],
+    hasReportedTypes: row[6] === "Y",
+    reportStatus: row[7] || null,
+    latestAleSampleDate: row[8] || null,
+    sourceUrl: SERVICE_LINE_SOURCE_URL,
+  };
+}
+
+function indexedPfasRecord(row) {
+  if (!row) return null;
+  const results = (row[6] || []).map((result) => ({
+    contaminant: result[0],
+    value: result[1],
+    unit: "µg/L",
+    collectionDate: result[2],
+    samplePoint: result[3] || null,
+    method: result[4] || null,
+    detectedResultCount: result[5] || 1,
+  }));
+  return {
+    startDate: row[0],
+    endDate: row[1],
+    periodLabel: periodLabel(row[0], row[1]),
+    sampleCount: row[2],
+    analyteCount: row[3],
+    resultCount: row[4],
+    belowMrlCount: row[5],
+    results,
+    sourceUrl: UCMR5_SOURCE_URL,
   };
 }
 
@@ -295,9 +344,77 @@ function indexedMatch(index, location) {
   return candidates.find((candidate) => candidate.ids?.length);
 }
 
+async function serviceAreaMatch(index, location) {
+  if (
+    !Number.isFinite(location.longitude) ||
+    !Number.isFinite(location.latitude)
+  ) {
+    return null;
+  }
+  const url = new URL(SERVICE_AREA_URL);
+  url.searchParams.set("where", "1=1");
+  url.searchParams.set(
+    "geometry",
+    `${location.longitude},${location.latitude}`,
+  );
+  url.searchParams.set("geometryType", "esriGeometryPoint");
+  url.searchParams.set("inSR", "4326");
+  url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
+  url.searchParams.set(
+    "outFields",
+    [
+      "PWSID",
+      "PWS_Name",
+      "Data_Provider_Type",
+      "Data_Source",
+      "Model_Method",
+      "Verification_Status",
+    ].join(","),
+  );
+  url.searchParams.set("returnGeometry", "false");
+  url.searchParams.set("f", "json");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const matched = (payload.features || [])
+      .map((feature) => feature.attributes || {})
+      .filter((attributes) => index.systems[attributes.PWSID]);
+    if (!matched.length) return null;
+    const ids = [
+      ...new Set(matched.map((attributes) => attributes.PWSID)),
+    ].sort((a, b) => index.systems[b][1] - index.systems[a][1]);
+    const primary = matched.find((attributes) => attributes.PWSID === ids[0]);
+    const provider = primary?.Data_Provider_Type || null;
+    const modeled =
+      Boolean(primary?.Model_Method) || !provider || /model/i.test(provider);
+    return {
+      ids,
+      kind: "service-area-v3",
+      label: "EPA Public Water System Service Areas V3 point match",
+      approximate: modeled,
+      boundary: {
+        provider,
+        modeled,
+        verification: primary?.Verification_Status || null,
+        dataSource: primary?.Data_Source || null,
+        sourceUrl: SERVICE_AREA_SOURCE_URL,
+      },
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function resolveSystems(location) {
   const index = await loadStateIndex(location.stateCode);
-  const match = indexedMatch(index, location);
+  const match =
+    (await serviceAreaMatch(index, location)) || indexedMatch(index, location);
   if (match) {
     const systems = match.ids
       .map((pwsid) => {
@@ -319,6 +436,7 @@ export async function resolveSystems(location) {
           kind: match.kind,
           label: match.label,
           approximate: match.approximate,
+          boundary: match.boundary || null,
         },
         dataQuarter: index.quarter,
       };
@@ -377,7 +495,8 @@ export async function getByQuery(key) {
     healthViolationCount: null,
     lead: selected.lead,
     copper: selected.copper,
-    bacteriaRecord: null,
+    pipeInventory: selected.pipeInventory,
+    pfas: selected.pfas,
     scenario: false,
     source: {
       label: `EPA ECHO SDWIS ${dataQuarter} — ${selected.pwsid}`,
@@ -392,31 +511,10 @@ export async function getComplianceByPwsid(pwsid) {
   const healthViolations = violations.filter(
     (row) => row.is_health_based_ind === "Y",
   );
-  const bacteriaViolations = violations.filter((row) =>
-    BACTERIA_CODES.has(String(row.contaminant_code || "")),
-  );
-  const bacteriaHealthViolations = bacteriaViolations.filter(
-    (row) => row.is_health_based_ind === "Y",
-  );
-  const bacteriaMonitoringViolations = bacteriaViolations.filter(
-    (row) => row.is_health_based_ind !== "Y",
-  );
-  const latestBacteriaDate = bacteriaViolations
-    .map((row) => isoDate(row.compl_per_begin_date))
-    .filter(Boolean)
-    .sort()
-    .at(-1);
   return {
     pwsid,
     violations,
     healthViolationCount: healthViolations.length,
-    bacteriaRecord: {
-      periodLabel: "Last 10 years",
-      healthViolationCount: bacteriaHealthViolations.length,
-      monitoringViolationCount: bacteriaMonitoringViolations.length,
-      latestDate: latestBacteriaDate,
-      hasReportedEvents: bacteriaViolations.length > 0,
-    },
     contaminantViolations: healthViolations
       .map((row) => ({
         row,
