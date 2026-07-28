@@ -321,7 +321,7 @@ html[data-water-theme="drawn"] .record-shell {
 
 .place-heading {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
 }
@@ -337,14 +337,15 @@ html[data-water-theme="drawn"] .record-shell {
 }
 
 .water-title {
-  --water-x: 48%;
-  --water-y: 48%;
+  --water-x: 50%;
+  --water-y: 50%;
+  position: relative;
   max-width: 850px;
   isolation: isolate;
 }
 
 .water-title-ink {
-  display: inline;
+  display: block;
   color: transparent;
   background:
     radial-gradient(
@@ -366,11 +367,31 @@ html[data-water-theme="drawn"] .record-shell {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   transform: translateZ(0);
-  transition: text-shadow 240ms ease;
-  will-change: filter;
 }
 
-.water-title.is-rippling .water-title-ink {
+.water-title-ripple {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(
+    circle 76px at var(--water-x) var(--water-y),
+    #000 0 40%,
+    rgba(0, 0, 0, 0.72) 62%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    circle 76px at var(--water-x) var(--water-y),
+    #000 0 40%,
+    rgba(0, 0, 0, 0.72) 62%,
+    transparent 100%
+  );
+  transition: opacity 120ms ease;
+  will-change: filter, mask-image;
+}
+
+.water-title.is-rippling .water-title-ripple {
+  opacity: 1;
   text-shadow:
     0 0 14px color-mix(in srgb, #8bd2f3 44%, transparent),
     0 0 34px color-mix(in srgb, var(--accent-color) 26%, transparent);
@@ -403,7 +424,7 @@ html[data-water-theme="drawn"] .water-title-ink {
 
 .match-badge {
   flex: none;
-  margin-bottom: 4px;
+  margin-top: 4px;
   padding: 5px 9px;
   border: 1px dashed var(--rule-strong);
   color: var(--text-muted);
@@ -636,7 +657,6 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 
 .verdict-block h2 {
   max-width: 760px;
-  margin-top: 8px;
   color: color-mix(in srgb, var(--lead) 65%, var(--text-bright));
   font-size: clamp(1.9rem, 3.1vw, 2.85rem);
   line-height: 1.08;
@@ -1095,7 +1115,8 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   }
 
   .place-heading {
-    display: block;
+    flex-direction: column;
+    gap: 0;
   }
 
   .place-heading h1 {
@@ -1103,8 +1124,8 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   }
 
   .match-badge {
-    display: inline-block;
-    margin-top: 12px;
+    order: -1;
+    margin: 0 0 12px;
   }
 
   .contaminant-tabs {

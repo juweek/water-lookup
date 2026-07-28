@@ -310,10 +310,10 @@ function WaterTitle({ children }) {
     const title = titleRef.current;
     if (!title) return;
     const bounds = title.getBoundingClientRect();
-    const x = ((event.clientX - bounds.left) / bounds.width) * 100;
-    const y = ((event.clientY - bounds.top) / bounds.height) * 100;
-    title.style.setProperty("--water-x", `${Math.max(0, Math.min(100, x))}%`);
-    title.style.setProperty("--water-y", `${Math.max(0, Math.min(100, y))}%`);
+    const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+    const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top));
+    title.style.setProperty("--water-x", `${x}px`);
+    title.style.setProperty("--water-y", `${y}px`);
   }
 
   function ripple(strength = 12) {
@@ -377,9 +377,11 @@ function WaterTitle({ children }) {
           ripple(21);
         }}
       >
+        <span className="water-title-ink">{children}</span>
         <span
-          className="water-title-ink"
+          className="water-title-ink water-title-ripple"
           style={{ filter: `url(#${filterId})` }}
+          aria-hidden="true"
         >
           {children}
         </span>
@@ -576,7 +578,6 @@ function Record({
       </aside>
 
       <section className="verdict-block">
-        <p className="eyebrow">The read</p>
         <h2>
           {isMeasurement
             ? verdictForMeasurement(measurement)
@@ -830,7 +831,6 @@ function RecordLane({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Against whose line?</p>
           <h2 id={`${measurement.key}-lane-title`}>{definition.shortName}</h2>
         </div>
         <p className="lane-reading">
@@ -876,10 +876,6 @@ function RecordLane({
           {isLead ? "US action level" : "health goal + action level"}
         </span>
       </div>
-      <p className="lane-footnote">
-        Each lane is normalized to its own limit. Percent-of-limit is not a
-        cross-contaminant risk score.
-      </p>
     </section>
   );
 }
