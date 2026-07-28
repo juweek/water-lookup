@@ -947,6 +947,41 @@ function generatePipeAtlas(inventory) {
     });
   });
 
+  clusterCenters.forEach(([centerX, centerY], clusterIndex) => {
+    for (let detailIndex = 0; detailIndex < 2; detailIndex += 1) {
+      const horizontalFirst = (clusterIndex + detailIndex) % 2 === 0;
+      const xDirection = (clusterIndex + detailIndex * 2) % 4 < 2 ? 1 : -1;
+      const yDirection = (clusterIndex * 2 + detailIndex) % 4 < 2 ? 1 : -1;
+      const startX = pipeClamp(centerX + (random() - 0.5) * 26, 30, 570);
+      const startY = pipeClamp(centerY + (random() - 0.5) * 26, 30, 570);
+      const endX = pipeClamp(
+        startX + xDirection * (34 + random() * 42),
+        24,
+        576,
+      );
+      const endY = pipeClamp(
+        startY + yDirection * (28 + random() * 38),
+        24,
+        576,
+      );
+      const bendX = pipeCoordinate(
+        startX + (endX - startX) * (0.42 + random() * 0.16),
+      );
+      const bendY = pipeCoordinate(
+        startY + (endY - startY) * (0.42 + random() * 0.16),
+      );
+
+      routes.push({
+        d: horizontalFirst
+          ? `M ${pipeCoordinate(startX)} ${pipeCoordinate(startY)} H ${bendX} V ${pipeCoordinate(endY)} H ${pipeCoordinate(endX)}`
+          : `M ${pipeCoordinate(startX)} ${pipeCoordinate(startY)} V ${bendY} H ${pipeCoordinate(endX)} V ${pipeCoordinate(endY)}`,
+        width: 2.4 + random() * 1.2,
+        opacity: 0.66,
+        kind: "detail",
+      });
+    }
+  });
+
   const branchOrigins = [
     [88, 94, 24, 60],
     [222, 104, 258, 24],
@@ -995,6 +1030,9 @@ function generatePipeAtlas(inventory) {
   return {
     cells,
     routes,
+    flowRoutes: routes
+      .filter((route, index) => route.kind === "arterial" && index % 3 === 0)
+      .slice(0, 6),
     couplings: couplings.slice(0, 32),
     terminals,
     valves: [
@@ -1013,6 +1051,8 @@ function generatePipeAtlas(inventory) {
 }
 
 function PipeNetworkIllustration({ inventory }) {
+  const visualRef = useRef(null);
+  const [motionActive, setMotionActive] = useState(false);
   const atlas = useMemo(() => generatePipeAtlas(inventory), [inventory]);
   const categories = pipeCategories(inventory);
   const reportedTotal = categories.reduce(
@@ -1032,9 +1072,34 @@ function PipeNetworkIllustration({ inventory }) {
     )
     .join(". ");
 
+  useEffect(() => {
+    const visual = visualRef.current;
+    const reducedMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    );
+
+    if (!visual || reducedMotion?.matches) {
+      return undefined;
+    }
+
+    if (!("IntersectionObserver" in window)) {
+      setMotionActive(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setMotionActive(entry.isIntersecting),
+      { rootMargin: "80px" },
+    );
+    observer.observe(visual);
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <figure
-      className="pipe-system-visual"
+      ref={visualRef}
+      className={`pipe-system-visual${motionActive ? " is-motion-active" : ""}`}
       aria-label={`A material-colored schematic of the system-wide service-line inventory. ${spokenCategories}. Exact counts are listed in the Service lines section.`}
     >
       <svg
@@ -1059,7 +1124,7 @@ function PipeNetworkIllustration({ inventory }) {
               <path
                 className="pipe-run-shadow"
                 d={route.d}
-                strokeWidth={route.width + 6}
+                strokeWidth={route.width + (route.kind === "detail" ? 3.2 : 6)}
               />
               <path
                 className="pipe-run-body"
@@ -1069,9 +1134,31 @@ function PipeNetworkIllustration({ inventory }) {
               <path
                 className="pipe-run-highlight"
                 d={route.d}
-                strokeWidth={Math.max(1.4, route.width * 0.2)}
+                strokeWidth={Math.max(
+                  route.kind === "detail" ? 0.8 : 1.4,
+                  route.width * 0.2,
+                )}
               />
             </g>
+          ))}
+        </g>
+
+        <g className="pipe-flow-layer">
+          {atlas.flowRoutes.map((route, index) => (
+            <path
+              key={`flow-${route.d}-${index}`}
+              className="pipe-flow-line"
+              d={route.d}
+              pathLength="100"
+              strokeDasharray={`${[2.8, 6.4, 4.2, 8.2, 3.6, 5.4][index]} ${
+                [16, 24, 19, 28, 21, 25][index]
+              }`}
+              style={{
+                "--pipe-motion-delay": `${-index * 3.7}s`,
+                "--pipe-motion-duration": `${16 + index * 1.4}s`,
+                "--pipe-flow-opacity": [0.56, 0.64, 0.72][index % 3],
+              }}
+            />
           ))}
         </g>
 
@@ -1108,13 +1195,21 @@ function PipeNetworkIllustration({ inventory }) {
               className="pipe-valve"
               transform={`translate(${valve.x} ${valve.y}) scale(${valve.scale}) rotate(${index * 13 - 9})`}
             >
-              <circle className="pipe-valve-wheel" r="29" />
+              <g
+                className="pipe-valve-moving"
+                style={{
+                  "--pipe-motion-delay": `${-index * 4.1}s`,
+                  "--pipe-motion-duration": `${17 + index * 1.6}s`,
+                }}
+              >
+                <circle className="pipe-valve-wheel" r="29" />
+                <path d="M0 -34 V34 M-34 0 H34 M-24 -24 L24 24 M24 -24 L-24 24" />
+              </g>
               <circle className="pipe-valve-hub" r="8" />
-              <path d="M0 -34 V34 M-34 0 H34 M-24 -24 L24 24 M24 -24 L-24 24" />
             </g>
           ))}
 
-          {atlas.meters.map((meter) => (
+          {atlas.meters.map((meter, index) => (
             <g
               key={`${meter.x}-${meter.y}`}
               className="pipe-meter"
@@ -1122,7 +1217,14 @@ function PipeNetworkIllustration({ inventory }) {
             >
               <circle className="pipe-meter-case" r="24" />
               <circle className="pipe-meter-face" r="17" />
-              <path d="M0 0 L8 -11" />
+              <path
+                className="pipe-meter-needle"
+                d="M0 0 L8 -11"
+                style={{
+                  "--pipe-motion-delay": `${-index * 3.2}s`,
+                  "--pipe-motion-duration": `${12 + index * 2}s`,
+                }}
+              />
               <circle r="3" />
               <path
                 className="pipe-meter-ticks"

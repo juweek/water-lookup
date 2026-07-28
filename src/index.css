@@ -598,12 +598,29 @@
   transform: translateY(-2px);
 }
 
+.pipe-flow-line {
+  fill: none;
+  stroke: rgb(151 221 255 / 84%);
+  stroke-dashoffset: 0;
+  stroke-linecap: round;
+  stroke-width: 2.1;
+  opacity: 0;
+  vector-effect: non-scaling-stroke;
+  animation: pipe-flow var(--pipe-motion-duration, 18s) linear infinite;
+  animation-delay: var(--pipe-motion-delay, 0s);
+  animation-play-state: paused;
+}
+
 .pipe-network-service {
   opacity: 0.96;
 }
 
 .pipe-network-distribution {
   opacity: 0.82;
+}
+
+.pipe-network-detail {
+  opacity: 0.66;
 }
 
 .pipe-coupling rect,
@@ -636,6 +653,15 @@
   stroke-width: 6;
 }
 
+.pipe-valve-moving {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pipe-valve-turn var(--pipe-motion-duration, 19s) ease-in-out
+    infinite;
+  animation-delay: var(--pipe-motion-delay, 0s);
+  animation-play-state: paused;
+}
+
 .pipe-valve-wheel {
   fill: rgb(18 27 32 / 88%);
   stroke: #aab5b8;
@@ -665,6 +691,15 @@
   stroke-width: 3;
 }
 
+.pipe-meter .pipe-meter-needle {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  animation: pipe-gauge-tick var(--pipe-motion-duration, 14s) ease-in-out
+    infinite;
+  animation-delay: var(--pipe-motion-delay, 0s);
+  animation-play-state: paused;
+}
+
 .pipe-meter .pipe-meter-ticks {
   stroke: #4b5e66;
   stroke-width: 2;
@@ -686,6 +721,102 @@
 
 .pipe-terminal-bolt {
   fill: #d3dcdf;
+}
+
+.pipe-system-visual.is-motion-active .pipe-flow-line,
+.pipe-system-visual.is-motion-active .pipe-valve-moving,
+.pipe-system-visual.is-motion-active .pipe-meter-needle {
+  animation-play-state: running;
+}
+
+@keyframes pipe-valve-turn {
+  0%,
+  18%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  22% {
+    transform: rotate(68deg);
+  }
+
+  26% {
+    transform: rotate(50deg);
+  }
+
+  30%,
+  78% {
+    transform: rotate(54deg);
+  }
+
+  83% {
+    transform: rotate(-10deg);
+  }
+
+  88% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes pipe-gauge-tick {
+  0%,
+  20%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  25% {
+    transform: rotate(20deg);
+  }
+
+  29% {
+    transform: rotate(-8deg);
+  }
+
+  34% {
+    transform: rotate(10deg);
+  }
+
+  39%,
+  72% {
+    transform: rotate(3deg);
+  }
+
+  77% {
+    transform: rotate(-13deg);
+  }
+
+  82% {
+    transform: rotate(6deg);
+  }
+
+  87% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes pipe-flow {
+  0%,
+  19%,
+  58%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+
+  24% {
+    opacity: 0.18;
+  }
+
+  31%,
+  45% {
+    opacity: var(--pipe-flow-opacity, 0.47);
+  }
+
+  53% {
+    opacity: 0.1;
+    stroke-dashoffset: -72;
+  }
 }
 
 .pipe-visual-key {
