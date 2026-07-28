@@ -326,7 +326,7 @@ function WaterTitle({ children }) {
     }
     cancelAnimationFrame(frameRef.current);
     const started = performance.now();
-    const duration = 820;
+    const duration = 940;
     titleRef.current?.classList.add("is-rippling");
 
     function animate(now) {
@@ -357,7 +357,7 @@ function WaterTitle({ children }) {
     const now = performance.now();
     if (event.pointerType === "mouse" && now - lastPulseRef.current > 520) {
       lastPulseRef.current = now;
-      ripple(11);
+      ripple(8);
     }
   }
 
@@ -369,12 +369,12 @@ function WaterTitle({ children }) {
         onPointerEnter={(event) => {
           setRippleOrigin(event);
           lastPulseRef.current = performance.now();
-          ripple(22);
+          ripple(18);
         }}
         onPointerMove={handlePointerMove}
         onPointerDown={(event) => {
           setRippleOrigin(event);
-          ripple(27);
+          ripple(21);
         }}
       >
         <span
@@ -466,11 +466,7 @@ function Record({
   return (
     <div className="record-layout">
       <section className="place-block">
-        <p className="eyebrow">
-          {result.scenario
-            ? "Published scenario"
-            : "Matched community water system"}
-        </p>
+        {result.scenario && <p className="eyebrow">Published scenario</p>}
         <div className="place-heading">
           <div>
             <WaterTitle>{result.location.name}</WaterTitle>
