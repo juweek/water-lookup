@@ -59,7 +59,7 @@ function glassHalfWidth(y) {
 // stream lands at x=z=0) over a gentle ambient swell. Shared by the surface
 // mesh, the wall's top edge, and the sim (so droplets die exactly at the
 // surface they see).
-function surfaceY(x, z, t) {
+function ambientSurfaceY(x, z, t) {
   const r = Math.sqrt(x * x + z * z);
   const ripple = 0.14 * Math.sin(r * 3.1 - t * 6.2) * Math.exp(-r * 0.62);
   const swell =
@@ -147,6 +147,25 @@ export function createWaterStream(
   const measurement = result?.visualMeasurement || result?.lead;
   const unmeasured = measurement?.value == null;
   const dim = unmeasured ? 0.45 : 1;
+  const pointerRipples = [];
+
+  function surfaceAt(x, z, t) {
+    let y = ambientSurfaceY(x, z, t);
+    for (const impulse of pointerRipples) {
+      const age = t - impulse.started;
+      if (age < 0 || age >= 1.7) continue;
+      const dx = x - impulse.x;
+      const dz = z - impulse.z;
+      const radius = Math.sqrt(dx * dx + dz * dz);
+      const envelope = 1 - age / 1.7;
+      y +=
+        impulse.strength *
+        Math.sin(radius * 5.1 - age * 10.5) *
+        Math.exp(-radius * 0.72) *
+        envelope;
+    }
+    return y;
+  }
 
   let width = Math.max(260, Math.min(620, container.clientWidth || 520));
   let height = Math.max(510, Math.round(width * 1.38));
@@ -232,7 +251,7 @@ export function createWaterStream(
       s.vel[j] = (Math.random() * 2 - 1) * impact * 0.22;
       s.vel[j + 2] = (Math.random() * 2 - 1) * impact * 0.14;
       s.vel[j + 1] = impact * (0.18 + Math.random() * 0.3);
-      s.pos[j + 1] = surfaceY(s.pos[j], s.pos[j + 2], t) + 0.05;
+      s.pos[j + 1] = surfaceAt(s.pos[j], s.pos[j + 2], t) + 0.05;
     } else {
       spawnAtSpout(s, i, false);
     }
@@ -307,7 +326,7 @@ export function createWaterStream(
       const j = i * 3;
       if (s.life[i] < 0) {
         fallStep(s, i, j, dt, t);
-        if (s.pos[j + 1] <= surfaceY(s.pos[j], s.pos[j + 2], t))
+        if (s.pos[j + 1] <= surfaceAt(s.pos[j], s.pos[j + 2], t))
           absorbWater(s, i, t);
       } else {
         // SPLASH: a short ballistic hop, then the surface takes it.
@@ -320,7 +339,7 @@ export function createWaterStream(
         if (
           s.life[i] <= 0 ||
           (s.vel[j + 1] < 0 &&
-            s.pos[j + 1] <= surfaceY(s.pos[j], s.pos[j + 2], t))
+            s.pos[j + 1] <= surfaceAt(s.pos[j], s.pos[j + 2], t))
         ) {
           spawnAtSpout(s, i, false);
         }
@@ -334,7 +353,7 @@ export function createWaterStream(
       const j = i * 3;
       if (s.life[i] < 0) {
         fallStep(s, i, j, dt, t);
-        if (s.pos[j + 1] <= surfaceY(s.pos[j], s.pos[j + 2], t))
+        if (s.pos[j + 1] <= surfaceAt(s.pos[j], s.pos[j + 2], t))
           submergeLead(s, i);
       } else {
         // SUBMERGED: each mark gets an independent circulation phase while
@@ -450,7 +469,7 @@ export function createWaterStream(
     });
   }
 
-  // Surface: a subdivided sheet whose vertex heights follow surfaceY() and
+  // Surface: a subdivided sheet whose vertex heights follow surfaceAt() and
   // whose shade lifts on crests, so the ripples read without lighting math.
   const surfGeometry = new THREE.BufferGeometry();
   {
@@ -547,7 +566,7 @@ export function createWaterStream(
     for (let iz = 0; iz <= SURF_Z; iz++) {
       for (let ix = 0; ix <= SURF_X; ix++) {
         const k = iz * (SURF_X + 1) + ix;
-        const y = surfaceY(sp[k * 3], sp[k * 3 + 2], t);
+        const y = surfaceAt(sp[k * 3], sp[k * 3 + 2], t);
         sp[k * 3 + 1] = y;
         ss[k] = 0.5 + (y - POOL_Y) * 2.6; // crests brighten, troughs deepen
       }
@@ -557,7 +576,7 @@ export function createWaterStream(
 
     const wp = wallGeometry.attributes.position.array;
     for (let ix = 0; ix <= SURF_X; ix++) {
-      wp[ix * 3 + 1] = surfaceY(wp[ix * 3], GLASS_DEPTH, t);
+      wp[ix * 3 + 1] = surfaceAt(wp[ix * 3], GLASS_DEPTH, t);
     }
     wallGeometry.attributes.position.needsUpdate = true;
   }
@@ -626,6 +645,12 @@ export function createWaterStream(
       leadMesh.geometry.attributes.position.needsUpdate = true;
       leadMesh.geometry.attributes.aAlpha.needsUpdate = true;
     }
+    while (
+      pointerRipples.length &&
+      elapsed - pointerRipples[0].started >= 1.7
+    ) {
+      pointerRipples.shift();
+    }
     updateBody(elapsed);
     renderer.render(scene, camera);
     if (running) raf = requestAnimationFrame(frame);
@@ -634,6 +659,64 @@ export function createWaterStream(
   const reducedMotion =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let lastPointerRipple = 0;
+
+  renderer.domElement.tabIndex = 0;
+  renderer.domElement.dataset.interactiveWater = "";
+  renderer.domElement.setAttribute(
+    "aria-label",
+    reducedMotion
+      ? "Animated water glass shown as a still image because reduced motion is enabled."
+      : "Interactive animated water glass. Move across or tap the glass to disturb the water surface.",
+  );
+
+  function addPointerRipple(event, strength) {
+    const bounds = renderer.domElement.getBoundingClientRect();
+    const xRatio = (event.clientX - bounds.left) / bounds.width;
+    const yRatio = (event.clientY - bounds.top) / bounds.height;
+    if (xRatio < 0 || xRatio > 1 || yRatio < 0.43 || yRatio > 0.9) return;
+    if (pointerRipples.length >= 4) pointerRipples.shift();
+    pointerRipples.push({
+      x: (xRatio * 2 - 1) * surfHalf,
+      z: 0,
+      started: elapsed,
+      strength,
+    });
+  }
+
+  function handlePointerMove(event) {
+    if (event.pointerType !== "mouse") return;
+    const now = performance.now();
+    if (now - lastPointerRipple < 110) return;
+    lastPointerRipple = now;
+    addPointerRipple(event, 0.08);
+  }
+
+  function handlePointerDown(event) {
+    addPointerRipple(event, 0.24);
+  }
+
+  function handleKeyDown(event) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    if (pointerRipples.length >= 4) pointerRipples.shift();
+    pointerRipples.push({
+      x: 0,
+      z: 0,
+      started: elapsed,
+      strength: 0.24,
+    });
+  }
+
+  if (!reducedMotion) {
+    renderer.domElement.addEventListener("pointermove", handlePointerMove, {
+      passive: true,
+    });
+    renderer.domElement.addEventListener("pointerdown", handlePointerDown, {
+      passive: true,
+    });
+    renderer.domElement.addEventListener("keydown", handleKeyDown);
+  }
 
   const resizeObserver =
     typeof ResizeObserver === "function"
@@ -671,6 +754,9 @@ export function createWaterStream(
     cancelAnimationFrame(raf);
     observer?.disconnect();
     resizeObserver?.disconnect();
+    renderer.domElement.removeEventListener("pointermove", handlePointerMove);
+    renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
+    renderer.domElement.removeEventListener("keydown", handleKeyDown);
     waterMesh.geometry.dispose();
     waterMesh.material.dispose();
     leadMesh?.geometry.dispose();

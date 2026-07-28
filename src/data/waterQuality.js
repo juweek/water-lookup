@@ -5,6 +5,7 @@ import {
   toDisplayUnit,
 } from "../lib/contaminants.js";
 import { getScenario } from "./scenarios.js";
+import { getCuratedCity } from "./randomCities.js";
 
 const EF_BASE = "https://data.epa.gov/efservice";
 const ZIP_RE = /^\d{5}$/;
@@ -131,6 +132,8 @@ async function geocodeZip(zip) {
 export async function geocode(query) {
   const q = query.trim();
   if (ZIP_RE.test(q)) return geocodeZip(q);
+  const curatedCity = getCuratedCity(q);
+  if (curatedCity) return curatedCity;
 
   const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
   url.searchParams.set("name", q);

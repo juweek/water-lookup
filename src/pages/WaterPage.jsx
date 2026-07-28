@@ -1,8 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAsync } from "../lib/useAsync.js";
 import { getByQuery, getComplianceByPwsid } from "../data/waterQuality.js";
+import { RANDOM_CITIES } from "../data/randomCities.js";
 import { COPPER, LEAD } from "../lib/contaminants.js";
 import { glassComposition } from "../lib/glassComposition.js";
 import LookupInput from "../components/LookupInput.jsx";
@@ -98,28 +98,6 @@ export default function WaterPage() {
   )
     ? requestedContaminant
     : "lead";
-  const [theme, setTheme] = useState(() => {
-    try {
-      return window.localStorage.getItem("water-theme") === "drawn"
-        ? "drawn"
-        : "real";
-    } catch {
-      return "real";
-    }
-  });
-
-  useEffect(() => {
-    document.documentElement.dataset.waterTheme = theme;
-    document.body.dataset.waterTheme = theme;
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "drawn" ? "#f7f0ef" : "#0a1322");
-    try {
-      window.localStorage.setItem("water-theme", theme);
-    } catch {
-      // The preference is optional; private browsing can block storage.
-    }
-  }, [theme]);
 
   useEffect(() => {
     if (
@@ -151,6 +129,14 @@ export default function WaterPage() {
     navigate(`/${encodeURIComponent(nextQuery)}`);
   }
 
+  function showRandomCity() {
+    const choices = RANDOM_CITIES.filter(
+      (city) => city.query.toLowerCase() !== query.toLowerCase(),
+    );
+    const city = choices[Math.floor(Math.random() * choices.length)];
+    navigate(`/${encodeURIComponent(city.query)}`);
+  }
+
   function updateParams(updates) {
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(updates)) {
@@ -169,42 +155,37 @@ export default function WaterPage() {
   }
 
   return (
-    <>
-      <MobileThemeToggle value={theme} onChange={setTheme} />
-      <section className="record-shell" aria-busy={state.status === "loading"}>
-        <RecordToolbar
-          query={query}
-          theme={theme}
-          onTheme={setTheme}
-          onSubmit={submit}
-        />
+    <section className="record-shell" aria-busy={state.status === "loading"}>
+      <RecordToolbar
+        query={query}
+        onSubmit={submit}
+        onRandom={showRandomCity}
+      />
 
-        {state.status === "loading" && (
-          <div className="record-status">
-            <Loading
-              label={`Matching ${query} to EPA’s quarterly water-system index…`}
-            />
-          </div>
-        )}
-        {state.status === "error" && (
-          <div className="record-status">
-            <ErrorState message={state.error} />
-          </div>
-        )}
-        {result && (
-          <Record
-            result={result}
-            query={query}
-            theme={theme}
-            availableTabs={availableTabs}
-            activeContaminant={activeContaminant}
-            complianceStatus={complianceStatus}
-            onContaminant={(key) => updateParams({ contaminant: key })}
-            onSystem={(pwsid) => updateParams({ system: pwsid })}
+      {state.status === "loading" && (
+        <div className="record-status">
+          <Loading
+            label={`Matching ${query} to EPA’s quarterly water-system index…`}
           />
-        )}
-      </section>
-    </>
+        </div>
+      )}
+      {state.status === "error" && (
+        <div className="record-status">
+          <ErrorState message={state.error} />
+        </div>
+      )}
+      {result && (
+        <Record
+          result={result}
+          query={query}
+          availableTabs={availableTabs}
+          activeContaminant={activeContaminant}
+          complianceStatus={complianceStatus}
+          onContaminant={(key) => updateParams({ contaminant: key })}
+          onSystem={(pwsid) => updateParams({ system: pwsid })}
+        />
+      )}
+    </section>
   );
 }
 
@@ -224,29 +205,9 @@ function tabHasData(tab, result, complianceStatus) {
   return false;
 }
 
-function MobileThemeToggle({ value, onChange }) {
-  const [host, setHost] = useState(null);
-
-  useEffect(() => {
-    setHost(document.getElementById("mobile-theme-toggle-slot"));
-  }, []);
-
-  return host
-    ? createPortal(
-        <ThemeToggle
-          value={value}
-          onChange={onChange}
-          className="mobile-theme-toggle"
-        />,
-        host,
-      )
-    : null;
-}
-
-function RecordToolbar({ query, theme, onTheme, onSubmit }) {
+function RecordToolbar({ query, onSubmit, onRandom }) {
   return (
     <div className="record-toolbar">
-      <p className="eyebrow">Gourmet Data · Water</p>
       <div className="record-search">
         <LookupInput
           defaultValue={query}
@@ -255,34 +216,15 @@ function RecordToolbar({ query, theme, onTheme, onSubmit }) {
           buttonLabel="Search"
         />
       </div>
-      <ThemeToggle
-        value={theme}
-        onChange={onTheme}
-        className="record-theme-toggle"
-      />
-    </div>
-  );
-}
-
-function ThemeToggle({ value, onChange, className = "" }) {
-  return (
-    <div
-      className={`theme-toggle ${className}`.trim()}
-      aria-label="Visual style"
-    >
-      {[
-        ["real", "Real"],
-        ["drawn", "Drawn"],
-      ].map(([key, label]) => (
-        <button
-          key={key}
-          type="button"
-          aria-pressed={value === key}
-          onClick={() => onChange(key)}
-        >
-          {label}
-        </button>
-      ))}
+      <button
+        type="button"
+        className="random-button"
+        onClick={onRandom}
+        aria-label="Explore a random city"
+      >
+        <span>Random</span>
+        <span aria-hidden="true">↝</span>
+      </button>
     </div>
   );
 }
@@ -426,7 +368,6 @@ function WaterTitle({ children }) {
 function Record({
   result,
   query,
-  theme,
   availableTabs,
   activeContaminant,
   complianceStatus,
@@ -506,7 +447,6 @@ function Record({
             <WaterStream
               result={glassResult}
               hidden={EMPTY_HIDDEN}
-              mode={theme}
               unreportedLabel={
                 isMeasurement
                   ? `${measurement.definition.shortName} result not reported`
@@ -589,15 +529,15 @@ function Record({
                 )
               : activeTab.verdict}
         </h2>
-        <p>
-          {isMeasurement
-            ? measurement.key === "lead"
-              ? `Lead’s 15 ${LEAD.unit} federal comparison is an action level—a treatment trigger—not a maximum contaminant level.`
-              : `Copper’s ${COPPER.legal.toLocaleString()} ${COPPER.unit} federal comparison is an action level. This system-wide result cannot establish the copper level at every tap.`
-            : activeTab.key === "bacteria"
-              ? "This tab counts federal Revised Total Coliform Rule violation events. It is not a complete history of positive and negative samples, and zero violations does not mean bacteria-free water."
-              : activeTab.explanation}
-        </p>
+        {(!isMeasurement || measurement.key !== "lead") && (
+          <p>
+            {isMeasurement
+              ? `Copper’s ${COPPER.legal.toLocaleString()} ${COPPER.unit} federal comparison is an action level. This system-wide result cannot establish the copper level at every tap.`
+              : activeTab.key === "bacteria"
+                ? "This tab counts federal Revised Total Coliform Rule violation events. It is not a complete history of positive and negative samples, and zero violations does not mean bacteria-free water."
+                : activeTab.explanation}
+          </p>
+        )}
       </section>
 
       <RecordLane
@@ -619,16 +559,6 @@ function Record({
           }
         />
         <ViolationSummary result={result} complianceStatus={complianceStatus} />
-        <Fact
-          label="ZIP match"
-          value={
-            result.scenario
-              ? "Scenario"
-              : result.resolution.approximate
-                ? "Approximate"
-                : "Direct"
-          }
-        />
         <Fact label="Primary source" value={system.sourceType} />
       </div>
 
@@ -679,7 +609,7 @@ function Record({
 
         <details>
           <summary>
-            <span>Methodology &amp; what this record can’t say</span>
+            <span>Methodology</span>
             <span aria-hidden="true">+</span>
           </summary>
           <div className="detail-body">
@@ -696,15 +626,6 @@ function Record({
               contaminant particles, and a compliance result cannot establish
               the concentration at every tap.
             </p>
-          </div>
-        </details>
-
-        <details>
-          <summary>
-            <span>How this place was matched to a system</span>
-            <span aria-hidden="true">+</span>
-          </summary>
-          <div className="detail-body">
             <p>
               {result.resolution.label}.{" "}
               {result.resolution.approximate
@@ -817,12 +738,17 @@ function RecordLane({
 
   const definition = measurement.definition;
   const value = measurement.value == null ? null : Number(measurement.value);
-  const position =
-    value == null
-      ? 0
-      : Math.max(0, Math.min(100, (value / definition.legal) * 100));
-  const over = value != null && value > definition.legal;
   const isLead = measurement.key === "lead";
+  const scaleMax = isLead ? 20 : definition.legal;
+  const position =
+    value == null ? 0 : Math.max(0, Math.min(100, (value / scaleMax) * 100));
+  const over = value != null && value > definition.legal;
+  const legalPosition = (definition.legal / scaleMax) * 100;
+  const markerEdge =
+    position >= 88 ? "edge-right" : position <= 12 ? "edge-left" : "";
+  const period = measurementYears(measurement);
+  const periodPrefix =
+    measurement.tier === "illustrative" ? "Published figure" : "Samples";
 
   return (
     <section
@@ -833,51 +759,125 @@ function RecordLane({
         <div>
           <h2 id={`${measurement.key}-lane-title`}>{definition.shortName}</h2>
         </div>
-        <p className="lane-reading">
-          {value == null
-            ? "No result reported"
-            : `${numericValue(value)} of ${definition.legal.toLocaleString()} ${definition.unit}`}
-        </p>
+        {(!isLead || value == null) && (
+          <p className="lane-reading">
+            {value == null
+              ? "No result reported"
+              : `${numericValue(value)} of ${definition.legal.toLocaleString()} ${definition.unit}`}
+          </p>
+        )}
       </div>
       <div className={`lane-scale ${value == null ? "missing" : ""}`}>
         <span className="lane-fill" style={{ width: `${position}%` }} />
-        {value != null && (
+        {value != null && isLead && (
+          <span
+            className={`lane-marker ${markerEdge}`.trim()}
+            style={{ left: `${position}%` }}
+          >
+            <span className="lane-marker-copy">
+              <span>
+                {periodPrefix}
+                {period ? ` · ${period}` : ""}
+              </span>
+              <strong>
+                {numericValue(value)} {definition.unit}
+              </strong>
+            </span>
+            <span className="lane-caret" aria-hidden="true" />
+            <span className={`lane-dot ${over ? "over" : ""}`} />
+            <span className="sr-only">
+              Reported reading: {numericValue(value)} {definition.unit}
+              {period ? `, ${periodPrefix.toLowerCase()} from ${period}` : ""}
+            </span>
+          </span>
+        )}
+        {value != null && !isLead && (
           <span
             className={`lane-dot ${over ? "over" : ""}`}
             style={{ left: `${position}%` }}
           >
-            <span className="sr-only">Your reading: {numericValue(value)}</span>
+            <span className="sr-only">
+              Reported reading: {numericValue(value)}
+            </span>
           </span>
         )}
-        {isLead && <span className="lane-tick health" />}
         {isLead && <span className="lane-tick who" />}
-        <span className="lane-tick legal" />
+        <span
+          className="lane-tick legal"
+          style={{ left: `${legalPosition}%` }}
+        />
       </div>
-      <div className="lane-labels" aria-hidden="true">
+      <div className="lane-labels">
         {isLead ? (
           <>
-            <span className="health-label">
+            <span className="scale-start-label" aria-hidden="true">
               <b>0</b>
-              EPA health goal
             </span>
-            <span className="who-label">
-              <b>10</b>
-              WHO guideline
+            <BenchmarkLabel
+              className="who-label"
+              value="10"
+              label="WHO guideline"
+              explanation="WHO’s 10 µg/L value is provisional: it reflects treatment performance and analytical achievability, not a threshold below which lead has no health effects."
+            />
+            <BenchmarkLabel
+              className="legal-label"
+              value={definition.legal.toLocaleString()}
+              label="US action level"
+              explanation="This is a system-level treatment trigger. If more than 10% of sampled taps exceed it, the rule requires additional steps. It is not a safe-at-the-tap limit."
+            />
+            <span className="scale-max-label" aria-hidden="true">
+              <b>{scaleMax}</b>
+              scale max
             </span>
           </>
         ) : (
-          <span className="health-label">
+          <span className="scale-start-label">
             <b>0</b>
             start of scale
           </span>
         )}
-        <span className="legal-label">
-          <b>{definition.legal.toLocaleString()}</b>
-          {isLead ? "US action level" : "health goal + action level"}
-        </span>
+        {!isLead && (
+          <span className="legal-label">
+            <b>{definition.legal.toLocaleString()}</b>
+            health goal + action level
+          </span>
+        )}
       </div>
+      {isLead && (
+        <p className="lane-context">
+          Lead’s 15 {LEAD.unit} federal comparison is an action level—a
+          treatment trigger—not a maximum contaminant level.
+        </p>
+      )}
     </section>
   );
+}
+
+function BenchmarkLabel({ className, value, label, explanation }) {
+  return (
+    <div className={className}>
+      <b>{value}</b>
+      <span className="benchmark-caption">
+        {label}
+        <details className="benchmark-help">
+          <summary aria-label={`Explain the ${label}`}>?</summary>
+          <span className="benchmark-popover" role="tooltip">
+            {explanation}
+          </span>
+        </details>
+      </span>
+    </div>
+  );
+}
+
+function measurementYears(measurement) {
+  const text = `${measurement.periodLabel || ""} ${measurement.date || ""}`;
+  const years = [...text.matchAll(/\b(?:19|20)\d{2}\b/g)].map(
+    (match) => match[0],
+  );
+  const unique = [...new Set(years)];
+  if (unique.length > 1) return `${unique[0]}–${unique.at(-1)}`;
+  return unique[0] || null;
 }
 
 function BacteriaLane({ record, status, scenario }) {
