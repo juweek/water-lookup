@@ -1154,8 +1154,8 @@ function PipeNetworkIllustration({ inventory }) {
                 [16, 24, 19, 28, 21, 25][index]
               }`}
               style={{
-                "--pipe-motion-delay": `${-index * 3.7}s`,
-                "--pipe-motion-duration": `${16 + index * 1.4}s`,
+                "--pipe-motion-delay": `${-index * 2.4}s`,
+                "--pipe-motion-duration": `${11 + index}s`,
                 "--pipe-flow-opacity": [0.56, 0.64, 0.72][index % 3],
               }}
             />
@@ -1198,8 +1198,8 @@ function PipeNetworkIllustration({ inventory }) {
               <g
                 className="pipe-valve-moving"
                 style={{
-                  "--pipe-motion-delay": `${-index * 4.1}s`,
-                  "--pipe-motion-duration": `${17 + index * 1.6}s`,
+                  "--pipe-motion-delay": `${-index * 3}s`,
+                  "--pipe-motion-duration": `${12.5 + index * 1.1}s`,
                 }}
               >
                 <circle className="pipe-valve-wheel" r="29" />
@@ -1221,8 +1221,8 @@ function PipeNetworkIllustration({ inventory }) {
                 className="pipe-meter-needle"
                 d="M0 0 L8 -11"
                 style={{
-                  "--pipe-motion-delay": `${-index * 3.2}s`,
-                  "--pipe-motion-duration": `${12 + index * 2}s`,
+                  "--pipe-motion-delay": `${-index * 2.2}s`,
+                  "--pipe-motion-duration": `${8.5 + index * 1.4}s`,
                 }}
               />
               <circle r="3" />
