@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAsync } from "../lib/useAsync.js";
 import { getByQuery, getComplianceByPwsid } from "../data/waterQuality.js";
@@ -59,11 +60,6 @@ export default function WaterPage() {
   const [searchParams] = useSearchParams();
   const selectedSystem = searchParams.get("system");
   const requestedContaminant = searchParams.get("contaminant");
-  const activeContaminant = CONTAMINANT_TABS.some(
-    (tab) => tab.key === requestedContaminant,
-  )
-    ? requestedContaminant
-    : "lead";
   const lookupKey = query
     ? `${query}${selectedSystem ? `?system=${encodeURIComponent(selectedSystem)}` : ""}`
     : "";
@@ -88,6 +84,20 @@ export default function WaterPage() {
     return { ...baseResult, ...complianceState.data };
   }, [baseResult, complianceState]);
   const navigate = useNavigate();
+  const availableTabs = useMemo(
+    () =>
+      result
+        ? CONTAMINANT_TABS.filter((tab) =>
+            tabHasData(tab, result, complianceStatus),
+          )
+        : CONTAMINANT_TABS,
+    [result, complianceStatus],
+  );
+  const activeContaminant = availableTabs.some(
+    (tab) => tab.key === requestedContaminant,
+  )
+    ? requestedContaminant
+    : "lead";
   const [theme, setTheme] = useState(() => {
     try {
       return window.localStorage.getItem("water-theme") === "drawn"
@@ -111,6 +121,32 @@ export default function WaterPage() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    if (
+      !result ||
+      !requestedContaminant ||
+      requestedContaminant === activeContaminant ||
+      (requestedContaminant === "bacteria" &&
+        !["done", "error"].includes(complianceStatus))
+    ) {
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("contaminant");
+    const suffix = next.toString();
+    navigate(`/${encodeURIComponent(query)}${suffix ? `?${suffix}` : ""}`, {
+      replace: true,
+    });
+  }, [
+    activeContaminant,
+    complianceStatus,
+    navigate,
+    query,
+    requestedContaminant,
+    result,
+    searchParams,
+  ]);
+
   function submit(nextQuery) {
     navigate(`/${encodeURIComponent(nextQuery)}`);
   }
@@ -133,39 +169,78 @@ export default function WaterPage() {
   }
 
   return (
-    <section className="record-shell" aria-busy={state.status === "loading"}>
-      <RecordToolbar
-        query={query}
-        theme={theme}
-        onTheme={setTheme}
-        onSubmit={submit}
-      />
-
-      {state.status === "loading" && (
-        <div className="record-status">
-          <Loading
-            label={`Matching ${query} to EPA’s quarterly water-system index…`}
-          />
-        </div>
-      )}
-      {state.status === "error" && (
-        <div className="record-status">
-          <ErrorState message={state.error} />
-        </div>
-      )}
-      {result && (
-        <Record
-          result={result}
+    <>
+      <MobileThemeToggle value={theme} onChange={setTheme} />
+      <section className="record-shell" aria-busy={state.status === "loading"}>
+        <RecordToolbar
           query={query}
           theme={theme}
-          activeContaminant={activeContaminant}
-          complianceStatus={complianceStatus}
-          onContaminant={(key) => updateParams({ contaminant: key })}
-          onSystem={(pwsid) => updateParams({ system: pwsid })}
+          onTheme={setTheme}
+          onSubmit={submit}
         />
-      )}
-    </section>
+
+        {state.status === "loading" && (
+          <div className="record-status">
+            <Loading
+              label={`Matching ${query} to EPA’s quarterly water-system index…`}
+            />
+          </div>
+        )}
+        {state.status === "error" && (
+          <div className="record-status">
+            <ErrorState message={state.error} />
+          </div>
+        )}
+        {result && (
+          <Record
+            result={result}
+            query={query}
+            theme={theme}
+            availableTabs={availableTabs}
+            activeContaminant={activeContaminant}
+            complianceStatus={complianceStatus}
+            onContaminant={(key) => updateParams({ contaminant: key })}
+            onSystem={(pwsid) => updateParams({ system: pwsid })}
+          />
+        )}
+      </section>
+    </>
   );
+}
+
+function tabHasData(tab, result, complianceStatus) {
+  if (tab.key === "lead") return true;
+  if (tab.key === "copper") return result.copper?.value != null;
+  if (tab.key === "bacteria") {
+    return complianceStatus === "done" && Boolean(result.bacteriaRecord);
+  }
+  if (tab.key === "pipes") return Boolean(result.pipeInventory);
+  if (tab.key === "pfas") {
+    return (
+      result.pfas?.value != null ||
+      (Array.isArray(result.pfas?.results) && result.pfas.results.length > 0)
+    );
+  }
+  return false;
+}
+
+function MobileThemeToggle({ value, onChange }) {
+  const [host, setHost] = useState(null);
+
+  useEffect(() => {
+    setHost(document.getElementById("mobile-theme-toggle-slot"));
+  }, []);
+
+  return host
+    ? createPortal(
+        <ThemeToggle
+          value={value}
+          onChange={onChange}
+          className="mobile-theme-toggle"
+        />,
+        host,
+      )
+    : null;
 }
 
 function RecordToolbar({ query, theme, onTheme, onSubmit }) {
@@ -180,14 +255,21 @@ function RecordToolbar({ query, theme, onTheme, onSubmit }) {
           buttonLabel="Search"
         />
       </div>
-      <ThemeToggle value={theme} onChange={onTheme} />
+      <ThemeToggle
+        value={theme}
+        onChange={onTheme}
+        className="record-theme-toggle"
+      />
     </div>
   );
 }
 
-function ThemeToggle({ value, onChange }) {
+function ThemeToggle({ value, onChange, className = "" }) {
   return (
-    <div className="theme-toggle" aria-label="Visual style">
+    <div
+      className={`theme-toggle ${className}`.trim()}
+      aria-label="Visual style"
+    >
       {[
         ["real", "Real"],
         ["drawn", "Drawn"],
@@ -205,10 +287,145 @@ function ThemeToggle({ value, onChange }) {
   );
 }
 
+function WaterTitle({ children }) {
+  const reactId = useId();
+  const filterId = useMemo(
+    () => `water-title-${reactId.replaceAll(":", "")}`,
+    [reactId],
+  );
+  const titleRef = useRef(null);
+  const turbulenceRef = useRef(null);
+  const displacementRef = useRef(null);
+  const frameRef = useRef(0);
+  const lastPulseRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(frameRef.current);
+    },
+    [],
+  );
+
+  function setRippleOrigin(event) {
+    const title = titleRef.current;
+    if (!title) return;
+    const bounds = title.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / bounds.width) * 100;
+    const y = ((event.clientY - bounds.top) / bounds.height) * 100;
+    title.style.setProperty("--water-x", `${Math.max(0, Math.min(100, x))}%`);
+    title.style.setProperty("--water-y", `${Math.max(0, Math.min(100, y))}%`);
+  }
+
+  function ripple(strength = 12) {
+    if (
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
+      !displacementRef.current ||
+      !turbulenceRef.current
+    ) {
+      return;
+    }
+    cancelAnimationFrame(frameRef.current);
+    const started = performance.now();
+    const duration = 820;
+    titleRef.current?.classList.add("is-rippling");
+
+    function animate(now) {
+      const progress = Math.min(1, (now - started) / duration);
+      const envelope = Math.sin(progress * Math.PI) * (1 - progress * 0.2);
+      const frequency = 0.012 + progress * 0.008;
+      displacementRef.current?.setAttribute(
+        "scale",
+        (strength * envelope).toFixed(2),
+      );
+      turbulenceRef.current?.setAttribute(
+        "baseFrequency",
+        `${frequency.toFixed(4)} ${(frequency * 2.35).toFixed(4)}`,
+      );
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(animate);
+      } else {
+        displacementRef.current?.setAttribute("scale", "0");
+        titleRef.current?.classList.remove("is-rippling");
+      }
+    }
+
+    frameRef.current = requestAnimationFrame(animate);
+  }
+
+  function handlePointerMove(event) {
+    setRippleOrigin(event);
+    const now = performance.now();
+    if (event.pointerType === "mouse" && now - lastPulseRef.current > 520) {
+      lastPulseRef.current = now;
+      ripple(11);
+    }
+  }
+
+  return (
+    <>
+      <h1
+        ref={titleRef}
+        className="water-title"
+        onPointerEnter={(event) => {
+          setRippleOrigin(event);
+          lastPulseRef.current = performance.now();
+          ripple(22);
+        }}
+        onPointerMove={handlePointerMove}
+        onPointerDown={(event) => {
+          setRippleOrigin(event);
+          ripple(27);
+        }}
+      >
+        <span
+          className="water-title-ink"
+          style={{ filter: `url(#${filterId})` }}
+        >
+          {children}
+        </span>
+      </h1>
+      <svg
+        className="water-title-filter"
+        width="0"
+        height="0"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <filter
+          id={filterId}
+          x="-12%"
+          y="-24%"
+          width="124%"
+          height="148%"
+          colorInterpolationFilters="sRGB"
+        >
+          <feTurbulence
+            ref={turbulenceRef}
+            type="fractalNoise"
+            baseFrequency="0.012 0.0282"
+            numOctaves="2"
+            seed="17"
+            result="waterNoise"
+          />
+          <feDisplacementMap
+            ref={displacementRef}
+            in="SourceGraphic"
+            in2="waterNoise"
+            scale="0"
+            xChannelSelector="R"
+            yChannelSelector="B"
+          />
+        </filter>
+      </svg>
+    </>
+  );
+}
+
 function Record({
   result,
   query,
   theme,
+  availableTabs,
   activeContaminant,
   complianceStatus,
   onContaminant,
@@ -216,8 +433,8 @@ function Record({
 }) {
   const { bacteriaRecord, copper, lead, system } = result;
   const activeTab =
-    CONTAMINANT_TABS.find((tab) => tab.key === activeContaminant) ??
-    CONTAMINANT_TABS[0];
+    availableTabs.find((tab) => tab.key === activeContaminant) ??
+    availableTabs[0];
   const measurement =
     activeTab.key === "lead"
       ? lead
@@ -256,7 +473,7 @@ function Record({
         </p>
         <div className="place-heading">
           <div>
-            <h1>{result.location.name}</h1>
+            <WaterTitle>{result.location.name}</WaterTitle>
             <p>
               {system.name}
               {system.pwsid ? ` · ${system.pwsid}` : ""}
@@ -269,7 +486,7 @@ function Record({
       </section>
 
       <nav className="contaminant-tabs" aria-label="Contaminants">
-        {CONTAMINANT_TABS.map((tab) => (
+        {availableTabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -821,11 +1038,11 @@ function verdictForMeasurement(measurement) {
   }
   if (value > definition.legal) {
     return measurement.key === "lead"
-      ? "Above the federal action level—and above the health goal."
+      ? "Above the federal action level."
       : "Above the federal copper action level.";
   }
   return measurement.key === "lead"
-    ? "Under the federal action level. Above EPA’s health goal of zero."
+    ? "Under the federal action level."
     : "Under the federal copper action level.";
 }
 

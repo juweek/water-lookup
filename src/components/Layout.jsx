@@ -12,6 +12,10 @@ export default function Layout({ children }) {
           </NavLink>
           <div className="site-header-actions">
             <span>EPA record explorer</span>
+            <div
+              id="mobile-theme-toggle-slot"
+              className="mobile-theme-toggle-slot"
+            />
             <a href={site.support.url} target="_blank" rel="noreferrer">
               Support the work
             </a>

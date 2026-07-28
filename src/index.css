@@ -218,6 +218,10 @@ html[data-water-theme="drawn"] {
   text-decoration-color: var(--rule-strong);
 }
 
+.mobile-theme-toggle-slot {
+  display: none;
+}
+
 .site-footer {
   margin-top: 64px;
   border-top: 1px solid var(--rule);
@@ -327,6 +331,64 @@ html[data-water-theme="drawn"] .record-shell {
   font-size: clamp(2.8rem, 5vw, 4.7rem);
   font-style: italic;
   line-height: 0.98;
+}
+
+.water-title {
+  --water-x: 48%;
+  --water-y: 48%;
+  max-width: 850px;
+  isolation: isolate;
+}
+
+.water-title-ink {
+  display: inline;
+  color: transparent;
+  background:
+    radial-gradient(
+      circle at var(--water-x) var(--water-y),
+      rgba(248, 253, 255, 0.98) 0 3%,
+      rgba(144, 207, 236, 0.92) 9%,
+      rgba(92, 156, 203, 0.28) 23%,
+      transparent 42%
+    ),
+    linear-gradient(
+      112deg,
+      #f4fbff 5%,
+      color-mix(in srgb, var(--text-bright) 58%, #5ea9d4) 32%,
+      #f7fcff 51%,
+      color-mix(in srgb, var(--text-bright) 66%, #3786bd) 72%,
+      #d8f1ff 92%
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transform: translateZ(0);
+  transition: text-shadow 240ms ease;
+  will-change: filter;
+}
+
+.water-title.is-rippling .water-title-ink {
+  text-shadow:
+    0 0 12px color-mix(in srgb, #8bd2f3 36%, transparent),
+    0 0 30px color-mix(in srgb, var(--accent-color) 20%, transparent);
+}
+
+.water-title-filter {
+  position: absolute;
+  pointer-events: none;
+}
+
+html[data-water-theme="drawn"] .water-title-ink {
+  background:
+    radial-gradient(
+      circle at var(--water-x) var(--water-y),
+      rgba(255, 255, 255, 0.92) 0 4%,
+      rgba(104, 163, 205, 0.72) 12%,
+      transparent 38%
+    ),
+    linear-gradient(110deg, #282421, #527da0 46%, #282421 78%);
+  background-clip: text;
+  -webkit-background-clip: text;
 }
 
 .place-heading p {
@@ -966,11 +1028,21 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   }
 
   .site-header-actions {
-    gap: 0;
+    gap: 9px;
   }
 
   .site-header-actions a {
     font-size: 0.69rem;
+  }
+
+  .mobile-theme-toggle-slot {
+    display: block;
+  }
+
+  .mobile-theme-toggle button {
+    min-height: 24px;
+    padding: 2px 7px;
+    font-size: 0.53rem;
   }
 
   .site-wordmark {
@@ -990,24 +1062,16 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
   }
 
   .record-toolbar {
-    grid-template-areas:
-      "brand toggle"
-      "search search";
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 12px;
+    display: block;
     padding: 15px 20px 17px;
   }
 
   .record-toolbar > .eyebrow {
-    grid-area: brand;
+    display: none;
   }
 
-  .record-toolbar > .record-search {
-    grid-area: search;
-  }
-
-  .record-toolbar > .theme-toggle {
-    grid-area: toggle;
+  .record-toolbar > .record-theme-toggle {
+    display: none;
   }
 
   .record-layout {
@@ -1129,9 +1193,30 @@ html[data-water-theme="drawn"] .glass-lighting canvas {
 }
 
 @media (max-width: 390px) {
+  .site-header-inner {
+    gap: 10px;
+  }
+
   .site-header-actions a {
-    max-width: 80px;
+    max-width: 64px;
     text-align: right;
+  }
+
+  .site-wordmark {
+    gap: 8px;
+    font-size: 0.8rem;
+  }
+
+  .site-wordmark > span {
+    width: 17px;
+  }
+
+  .site-header-actions {
+    gap: 6px;
+  }
+
+  .mobile-theme-toggle button {
+    padding-inline: 5px;
   }
 
   .record-layout,
